@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
@@ -68,10 +69,13 @@ public class Main extends ApplicationAdapter {
     
     static String logBuffer = "";
     
+    private static SelectBox<String> uvModesSelectionBox;
+    private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
-    String[] arduinoDisplayModes = {"Volume bar", "Volume bar 2", "5 frequency bands", "3 frequency bands", "1 frequency band", "Rainbow light", "Running frequencies", "Worm", "Running worm"};
+    String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
     String[] pcArduinoDisplayModes = {"Volume bar"};
-    private static int currentArduinoDisplayMode = 0;
+    String[] uvModes = {"0", "1", "2"};
+    String[] lightModes = {"0", "1", "2"};
     private int currentPcArduinoDisplayMode = 0;
     SerialPort arduinoPort;
     int baudRate = 1_000_000;
@@ -118,7 +122,7 @@ public class Main extends ApplicationAdapter {
         uiTextures.addRegions(uiAtlas_buttons);
         
         TextureRegionDrawable BarBackgroundBlank = generateRegion(100, 30, Color.DARK_GRAY);
-        TextureRegionDrawable BarBackgroundGrey = generateRegion(100, 30, Color.valueOf("#333333AA"));
+        TextureRegionDrawable BarBackgroundGrey = generateRegion(100, 30, Color.valueOf("#333333FF"));
         TextureRegionDrawable BarBackgroundEmpty = generateRegion(100, 30, Color.valueOf("#00000000"));
         
         TextButtonStyle textButtonStyle = new TextButtonStyle();
@@ -151,20 +155,24 @@ public class Main extends ApplicationAdapter {
                 new ScrollPane.ScrollPaneStyle(BarBackgroundGrey, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty),
                 new List.ListStyle(font, Color.CORAL, Color.SKY, BarBackgroundGrey));
         
+        Label.LabelStyle labelStyle = new Label.LabelStyle(font, Color.WHITE);
+        
         arduinoModes = new SelectBox<>(selectBoxStyle);
         arduinoModes.setItems(arduinoDisplayModes);
         arduinoModes.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (arduinoModeInitialized) {
-                    currentArduinoDisplayMode = arduinoModes.getSelectedIndex();
-                    sendData((byte) 'm', (byte) currentArduinoDisplayMode);
+                    sendData((byte) 'm', (byte) arduinoModes.getSelectedIndex());
                 }
             }
         });
-        arduinoModes.setPosition(150, 300);
+        arduinoModes.setPosition(150, 260);
         arduinoModes.setWidth(300);
+        Label arduinoModeLabel = new Label("Arduino mode", labelStyle);
+        arduinoModeLabel.setPosition(0, 262);
         stage.addActor(arduinoModes);
+        stage.addActor(arduinoModeLabel);
         
         final SelectBox<String> pcArduinoModes = new SelectBox<>(selectBoxStyle);
         pcArduinoModes.setItems(pcArduinoDisplayModes);
@@ -174,9 +182,47 @@ public class Main extends ApplicationAdapter {
                 currentPcArduinoDisplayMode = pcArduinoModes.getSelectedIndex();
             }
         });
-        pcArduinoModes.setPosition(150, 260);
+        pcArduinoModes.setPosition(150, 220);
         pcArduinoModes.setWidth(300);
+        Label pcArduinoModeLabel = new Label("Pc mode", labelStyle);
+        pcArduinoModeLabel.setPosition(61, 222);
         stage.addActor(pcArduinoModes);
+        stage.addActor(pcArduinoModeLabel);
+    
+        lightModesSelectionBox = new SelectBox<>(selectBoxStyle);
+        lightModesSelectionBox.setItems(lightModes);
+        lightModesSelectionBox.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if(arduinoModeInitialized){
+                    sendData((byte)'l', (byte) lightModesSelectionBox.getSelectedIndex());
+                }
+            }
+        });
+        lightModesSelectionBox.setPosition(150, 150);
+        lightModesSelectionBox.setWidth(300);
+        Label lightModeLabel = new Label("Light mode", labelStyle);
+        lightModeLabel.setPosition(26, 152);
+        stage.addActor(lightModesSelectionBox);
+        stage.addActor(lightModeLabel);
+        
+        uvModesSelectionBox = new SelectBox<>(selectBoxStyle);
+        uvModesSelectionBox.setItems(uvModes);
+        uvModesSelectionBox.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if(arduinoModeInitialized){
+                    sendData((byte)'u', (byte) uvModesSelectionBox.getSelectedIndex());
+                }
+            }
+        });
+        uvModesSelectionBox.setPosition(150, 110);
+        uvModesSelectionBox.setWidth(300);
+        Label uvModeLabel = new Label("Volume bar\nmode", labelStyle);
+        uvModeLabel.setPosition(20, 100);
+        uvModeLabel.setAlignment(Align.right);
+        stage.addActor(uvModesSelectionBox);
+        stage.addActor(uvModeLabel);
         
         CheckBox.CheckBoxStyle checkBoxStyle = new CheckBox.CheckBoxStyle();
         checkBoxStyle.checkboxOff = uiTextures.getDrawable("checkBox_disabled");
@@ -209,8 +255,18 @@ public class Main extends ApplicationAdapter {
         });
         pcControlCheckBox.setPosition(250, 350);
         pcControlCheckBox.align(Align.left);
+        final CheckBox brightnessSyncCheckBox = new CheckBox("Brightness sync", checkBoxStyle);
+        brightnessSyncCheckBox.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                sendData((byte) 'a');
+            }
+        });
+        brightnessSyncCheckBox.setPosition(150, 300);
+        brightnessSyncCheckBox.align(Align.left);
         stage.addActor(powerCheckBox);
         stage.addActor(pcControlCheckBox);
+        stage.addActor(brightnessSyncCheckBox);
         
         Gdx.input.setInputProcessor(stage);
         
@@ -227,7 +283,7 @@ public class Main extends ApplicationAdapter {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-                    } else if (musicNotPlayingTimer < targetFps * 3) { // 3 seconds of silence
+                    } else if (musicNotPlayingTimer < targetFps) { //seconds of silence
                         byte[] colorArray = new byte[362];
                         colorArray[0] = (byte) 'f'; // command byte
                         colorArray[colorArray.length - 1] = 10; // ending byte
@@ -310,8 +366,10 @@ public class Main extends ApplicationAdapter {
     
     static void log(LogLevel logLevel, String message) {
         if (message.startsWith("mm")) {
-            currentArduinoDisplayMode = Integer.parseInt(message.replace("mm", "").trim());
-            arduinoModes.setSelectedIndex(currentArduinoDisplayMode);
+            String[] settings = message.replace("mm", "").trim().split("_");
+            arduinoModes.setSelectedIndex(Integer.parseInt(settings[0]));
+            uvModesSelectionBox.setSelectedIndex(Integer.parseInt(settings[1]));
+            lightModesSelectionBox.setSelectedIndex(Integer.parseInt(settings[2]));
             arduinoModeInitialized = true;
         } else if (message.trim().equals("e")) {
             errorCount++;
