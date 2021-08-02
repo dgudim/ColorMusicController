@@ -17,8 +17,8 @@ public class DesktopLauncher {
 		config.backgroundFPS = 60;
 		config.vSyncEnabled = true;
 		config.forceExit = true;
-		config.title = "Arduino color music controller";
 		config.addIcon("spectrum.png", Files.FileType.Internal);
+		config.title = "Arduino color music controller";
 		new LwjglApplication(new Main(), config);
 	}
 }
