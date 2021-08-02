@@ -1,5 +1,6 @@
 package com.deo.colorcontrol.desktop;
 
+import com.badlogic.gdx.Files;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
 import com.deo.colorcontrol.Main;
@@ -17,6 +18,7 @@ public class DesktopLauncher {
 		config.vSyncEnabled = true;
 		config.forceExit = true;
 		config.title = "Arduino color music controller";
+		config.addIcon("spectrum.png", Files.FileType.Internal);
 		new LwjglApplication(new Main(), config);
 	}
 }
