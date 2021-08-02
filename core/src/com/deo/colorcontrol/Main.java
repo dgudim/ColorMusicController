@@ -40,7 +40,9 @@ import static com.deo.colorcontrol.LogLevel.INFO;
 import static com.deo.colorcontrol.LogLevel.NOTHING;
 import static com.deo.colorcontrol.LogLevel.WARNING;
 import static com.deo.colorcontrol.Main.log;
+import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
 import static com.deo.colorcontrol.Utils.applyLinearScale;
+import static com.deo.colorcontrol.Utils.fillArray;
 import static com.deo.colorcontrol.Utils.generateRegion;
 import static com.deo.colorcontrol.Utils.setDrawableDimensions;
 import static com.deo.colorcontrol.Utils.shiftArray;
@@ -334,18 +336,14 @@ public class Main extends ApplicationAdapter {
                             case (1):
                                 redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
                                 greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
-                                for (int i = 0; i < numLeds; i++) {
-                                    blueChannel[i] = 127 * clamp(currentVolume[1], 0, 1);
-                                }
+                                fillArray(blueChannel, 127 * clamp(currentVolume[1], 0, 1));
                                 shiftArray(1, redChannel);
                                 shiftArray(4, greenChannel);
                                 break;
                             case (2):
-                                for (int i = 0; i < numLeds; i++) {
-                                    redChannel[i] = currentBassFrequencyValue[0] / 2048f * 200;
-                                    greenChannel[i] = currentMidFrequencyValue[0] / 2048f * 200;
-                                    blueChannel[i] = currentHighFrequencyValue[0] / 2048f * 200;
-                                }
+                                fillArray(redChannel, currentBassFrequencyValue[0] / 2048f * 200);
+                                fillArray(greenChannel, currentMidFrequencyValue[0] / 2048f * 200);
+                                fillArray(blueChannel, currentHighFrequencyValue[0] / 2048f * 200);
                                 break;
                             case (3):
                                 redChannel[0] = currentBassFrequencyValue[0] / 2048f * 200;
@@ -457,58 +455,6 @@ public class Main extends ApplicationAdapter {
                 logBuffer = logBuffer.substring(logBuffer.indexOf("\n") + 1);
             }
         }
-    }
-    
-    float addValueToAShiftingArray(int maxSize, float valueToAdd, Array<Float> targetArray, boolean clamp) {
-        float average = 0;
-        if (targetArray.size < maxSize) {
-            targetArray.add(valueToAdd);
-            for (int i = 0; i < targetArray.size; i++) {
-                average += targetArray.get(i);
-            }
-        } else {
-            for (int i = 0; i < targetArray.size - 1; i++) {
-                targetArray.set(i, targetArray.get(i + 1));
-                average += targetArray.get(i + 1);
-            }
-            targetArray.set(targetArray.size - 1, valueToAdd);
-            average += valueToAdd;
-        }
-        average /= (float) targetArray.size;
-        if (clamp) {
-            average = clamp(average, 0, 1);
-        }
-        return average;
-    }
-    
-    float[] addValueToAShiftingArray(int maxSize, float[] valueToAdd, Array<float[]> targetArray, boolean clamp) {
-        float[] average = new float[valueToAdd.length];
-        if (targetArray.size < maxSize) {
-            targetArray.add(valueToAdd);
-            for (int i = 0; i < targetArray.size; i++) {
-                for (int a = 0; a < average.length; a++) {
-                    average[a] += targetArray.get(i)[a];
-                }
-            }
-        } else {
-            for (int i = 0; i < targetArray.size - 1; i++) {
-                targetArray.set(i, targetArray.get(i + 1));
-                for (int a = 0; a < average.length; a++) {
-                    average[a] += targetArray.get(i + 1)[a];
-                }
-            }
-            targetArray.set(targetArray.size - 1, valueToAdd);
-            for (int a = 0; a < average.length; a++) {
-                average[a] += valueToAdd[a];
-            }
-        }
-        for (int a = 0; a < average.length; a++) {
-            average[a] /= (float) targetArray.size;
-            if (clamp) {
-                average[a] = clamp(average[a], 0, 1);
-            }
-        }
-        return average;
     }
     
     void processFFtSamples() {
