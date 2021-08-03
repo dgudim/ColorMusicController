@@ -355,14 +355,14 @@ public class Main extends ApplicationAdapter {
                                 shiftArray(4, blueChannel);
                                 break;
                             case (4):
-                                fillArray(redChannel, currentBassFrequencyValue[0] / 2048f * 200);
-                                fillArray(greenChannel, currentMidFrequencyValue[0] / 2048f * 200);
-                                fillArray(blueChannel, currentHighFrequencyValue[0] / 2048f * 200);
+                                fillArray(redChannel, currentBassFrequencyValue[0] / 2048f * 50);
+                                fillArray(greenChannel, currentMidFrequencyValue[0] / 2048f * 50);
+                                fillArray(blueChannel, currentHighFrequencyValue[0] / 2048f * 50);
                                 break;
                             case (5):
-                                redChannel[0] = currentBassFrequencyValue[0] / 2048f * 200;
-                                greenChannel[0] = currentMidFrequencyValue[0] / 2048f * 200;
-                                blueChannel[0] = currentHighFrequencyValue[0] / 2048f * 200;
+                                redChannel[0] = currentBassFrequencyValue[0] / 2048f * 50;
+                                greenChannel[0] = currentMidFrequencyValue[0] / 2048f * 50;
+                                blueChannel[0] = currentHighFrequencyValue[0] / 2048f * 50;
                                 shiftArray(4, redChannel);
                                 shiftArray(6, greenChannel);
                                 shiftArray(8, blueChannel);
