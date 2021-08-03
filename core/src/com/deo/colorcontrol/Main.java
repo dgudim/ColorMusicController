@@ -88,7 +88,7 @@ public class Main extends ApplicationAdapter {
     final int fftFrameSize = frameSize / 2;
     float[][] current_fftSamples = new float[2][fftFrameSize];
     float[][] fftSamples = new float[2][fftFrameSize];
-    float fftDecaySpeed = 3.5f;
+    float fftDecaySpeed = 1.5f;
     float frequencyToFftSampleConversionStep = fftFrameSize / 20000f;
     
     final int numLeds = 120;
@@ -105,7 +105,7 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
     String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
-    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat", "Frequency flash", "Running frequencies", "Basic fft"};
+    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft"};
     String[] uvModes = {"0", "1", "2"};
     String[] lightModes = {"0", "1", "2"};
     private int currentPcArduinoDisplayMode = 0;
@@ -341,11 +341,25 @@ public class Main extends ApplicationAdapter {
                                 shiftArray(4, greenChannel);
                                 break;
                             case (2):
+                                blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
+                                redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
+                                fillArray(greenChannel, 127 * clamp(currentVolume[1], 0, 1));
+                                shiftArray(1, blueChannel);
+                                shiftArray(4, redChannel);
+                                break;
+                            case (3):
+                                greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
+                                blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
+                                fillArray(redChannel, 127 * clamp(currentVolume[1], 0, 1));
+                                shiftArray(1, greenChannel);
+                                shiftArray(4, blueChannel);
+                                break;
+                            case (4):
                                 fillArray(redChannel, currentBassFrequencyValue[0] / 2048f * 200);
                                 fillArray(greenChannel, currentMidFrequencyValue[0] / 2048f * 200);
                                 fillArray(blueChannel, currentHighFrequencyValue[0] / 2048f * 200);
                                 break;
-                            case (3):
+                            case (5):
                                 redChannel[0] = currentBassFrequencyValue[0] / 2048f * 200;
                                 greenChannel[0] = currentMidFrequencyValue[0] / 2048f * 200;
                                 blueChannel[0] = currentHighFrequencyValue[0] / 2048f * 200;
@@ -353,12 +367,12 @@ public class Main extends ApplicationAdapter {
                                 shiftArray(6, greenChannel);
                                 shiftArray(8, blueChannel);
                                 break;
-                            case (4):
+                            case (6):
                                 for (int i = 0; i < numLeds; i++) {
-                                    redChannel[i] = current_fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 200;
+                                    redChannel[i] = current_fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 50;
                                 }
                                 for (int i = 0; i < numLeds; i++) {
-                                    greenChannel[i] = current_fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 200;
+                                    greenChannel[i] = current_fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 50;
                                 }
                                 break;
                         }
@@ -417,9 +431,9 @@ public class Main extends ApplicationAdapter {
     
     void sendColorArray() {
         for (int i = 1; i < mergedColorBuffer.length - 4; i += 3) {
-            mergedColorBuffer[i] = (byte) redChannel[i / 3];
-            mergedColorBuffer[i + 1] = (byte) greenChannel[i / 3];
-            mergedColorBuffer[i + 2] = (byte) blueChannel[i / 3];
+            mergedColorBuffer[i] = (byte) clamp(redChannel[i / 3], 0, 255);
+            mergedColorBuffer[i + 1] = (byte) clamp(greenChannel[i / 3], 0, 255);
+            mergedColorBuffer[i + 2] = (byte) clamp(blueChannel[i / 3], 0, 255);
         }
         sendData(mergedColorBuffer);
     }
@@ -558,7 +572,7 @@ public class Main extends ApplicationAdapter {
         shapeRenderer.rectLine(23, 15, 23, abs(currentVolumeDelta[0]) * 465 + 15, 5);
         shapeRenderer.rectLine(29, 15, 29, abs(currentVolumeDelta[1]) * 465 + 15, 5);
         for (int i = 0; i < numLeds; i++) {
-            shapeRenderer.setColor(new Color(Color.rgba8888(redChannel[i] / 255f, greenChannel[i] / 255f, blueChannel[i] / 255f, 1)));
+            shapeRenderer.setColor(new Color(Color.rgba8888(clamp(redChannel[i] / 255f, 0, 1), clamp(greenChannel[i] / 255f, 0, 1), clamp(blueChannel[i] / 255f, 0, 1), 1)));
             shapeRenderer.rectLine(i * ledStep, 7.5f, (i + 1) * ledStep, 7.5f, 15);
         }
         shapeRenderer.end();
