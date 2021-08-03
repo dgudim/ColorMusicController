@@ -93,7 +93,7 @@ public class Main extends ApplicationAdapter {
     
     final int numLeds = 120;
     final float ledStep = 800 / (float) numLeds;
-    float ledPosToFftSampleConversionStep = fftFrameSize / (float) numLeds;
+    float ledPosToFftSampleConversionStep = (fftFrameSize / 2f) / (float) numLeds; //limit range to 0 - 10Khz, looks better
     float[] redChannel = new float[numLeds];
     float[] greenChannel = new float[numLeds];
     float[] blueChannel = new float[numLeds];
@@ -106,8 +106,8 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> arduinoModes;
     String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
     String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft"};
-    String[] uvModes = {"0", "1", "2"};
-    String[] lightModes = {"0", "1", "2"};
+    String[] uvModes = {"Basic", "Running volume", "Running volume 2"};
+    String[] lightModes = {"Basic", "Color shift", "Color flow"};
     private int currentPcArduinoDisplayMode = 0;
     SerialPort arduinoPort;
     int baudRate = 1_000_000;
@@ -293,19 +293,10 @@ public class Main extends ApplicationAdapter {
         });
         pcControlCheckBox.setPosition(250, 350);
         pcControlCheckBox.align(Align.left);
-        final CheckBox brightnessSyncCheckBox = new CheckBox("Brightness sync", checkBoxStyle);
-        brightnessSyncCheckBox.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                sendData((byte) 'a');
-            }
-        });
-        brightnessSyncCheckBox.setPosition(150, 300);
-        brightnessSyncCheckBox.align(Align.left);
+        
         stage.addActor(powerCheckBox);
         stage.addActor(pcControlCheckBox);
-        stage.addActor(brightnessSyncCheckBox);
-        
+      
         Gdx.input.setInputProcessor(stage);
         
         updateThread = new Timer();
