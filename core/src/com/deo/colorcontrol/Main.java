@@ -20,6 +20,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.List;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -121,6 +122,9 @@ public class Main extends ApplicationAdapter {
     static boolean arduinoModeInitialized;
     int musicNotPlayingTimer;
     
+    int targetAnimationBufferSize;
+    Array<byte[]> animationBuffer;
+    
     Timer updateThread;
     
     public Main() {
@@ -133,17 +137,17 @@ public class Main extends ApplicationAdapter {
         mergedColorBuffer[0] = (byte) 'f'; //starting byte
         mergedColorBuffer[mergedColorBuffer.length - 1] = 1; //ending byte(can be any byte)
         openPort();
-    
+        
         FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
-    
-        if(shutdownFlag.exists()){
+        
+        if (shutdownFlag.exists()) {
             try {
                 Thread.sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
             shutdownFlag.delete();
-            sendData((byte)'p');
+            sendData((byte) 'p');
             closePort();
             System.exit(3);
         }
@@ -179,6 +183,28 @@ public class Main extends ApplicationAdapter {
         textButtonStyle.down = uiTextures.getDrawable("blank_shopButton_enabled");
         textButtonStyle.font = font;
         
+        SelectBox.SelectBoxStyle selectBoxStyle = new SelectBox.SelectBoxStyle(font, Color.WHITE, BarBackgroundBlank,
+                new ScrollPane.ScrollPaneStyle(BarBackgroundGrey, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty),
+                new List.ListStyle(font, Color.CORAL, Color.SKY, BarBackgroundGrey));
+        
+        Label.LabelStyle labelStyle = new Label.LabelStyle(font, Color.WHITE);
+        
+        CheckBox.CheckBoxStyle checkBoxStyle = new CheckBox.CheckBoxStyle();
+        checkBoxStyle.checkboxOff = uiTextures.getDrawable("checkBox_disabled");
+        checkBoxStyle.checkboxOver = uiTextures.getDrawable("checkBox_disabled_over");
+        checkBoxStyle.checkboxOn = uiTextures.getDrawable("checkBox_enabled");
+        checkBoxStyle.checkboxOnOver = uiTextures.getDrawable("checkBox_enabled_over");
+        setDrawableDimensions(50, 50, checkBoxStyle.checkboxOff, checkBoxStyle.checkboxOver, checkBoxStyle.checkboxOn, checkBoxStyle.checkboxOnOver);
+        checkBoxStyle.font = font;
+        
+        Slider.SliderStyle sliderStyle = new Slider.SliderStyle();
+        sliderStyle.background = uiTextures.getDrawable("progressBarBg");
+        setDrawableDimensions(120, 50, sliderStyle.background);
+        sliderStyle.knob = uiTextures.getDrawable("progressBarKnob");
+        sliderStyle.knobOver = uiTextures.getDrawable("progressBarKnob_over");
+        sliderStyle.knobDown = uiTextures.getDrawable("progressBarKnob_enabled");
+        setDrawableDimensions(30, 55, sliderStyle.knob, sliderStyle.knobOver, sliderStyle.knobDown);
+        
         final TextButton openPort = new TextButton("Open port", textButtonStyle);
         openPort.setBounds(0, 440, 140, 40);
         openPort.addListener(new ClickListener() {
@@ -195,15 +221,6 @@ public class Main extends ApplicationAdapter {
                 closePort();
             }
         });
-        stage = new Stage();
-        stage.addActor(openPort);
-        stage.addActor(closePort);
-        
-        SelectBox.SelectBoxStyle selectBoxStyle = new SelectBox.SelectBoxStyle(font, Color.WHITE, BarBackgroundBlank,
-                new ScrollPane.ScrollPaneStyle(BarBackgroundGrey, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty),
-                new List.ListStyle(font, Color.CORAL, Color.SKY, BarBackgroundGrey));
-        
-        Label.LabelStyle labelStyle = new Label.LabelStyle(font, Color.WHITE);
         
         arduinoModes = new SelectBox<>(selectBoxStyle);
         arduinoModes.setItems(arduinoDisplayModes);
@@ -219,8 +236,6 @@ public class Main extends ApplicationAdapter {
         arduinoModes.setWidth(300);
         Label arduinoModeLabel = new Label("Arduino mode", labelStyle);
         arduinoModeLabel.setPosition(0, 262);
-        stage.addActor(arduinoModes);
-        stage.addActor(arduinoModeLabel);
         
         final SelectBox<String> pcArduinoModes = new SelectBox<>(selectBoxStyle);
         pcArduinoModes.setItems(pcArduinoDisplayModes);
@@ -239,8 +254,6 @@ public class Main extends ApplicationAdapter {
         pcArduinoModes.setWidth(300);
         Label pcArduinoModeLabel = new Label("Pc mode", labelStyle);
         pcArduinoModeLabel.setPosition(61, 222);
-        stage.addActor(pcArduinoModes);
-        stage.addActor(pcArduinoModeLabel);
         
         lightModesSelectionBox = new SelectBox<>(selectBoxStyle);
         lightModesSelectionBox.setItems(lightModes);
@@ -256,8 +269,6 @@ public class Main extends ApplicationAdapter {
         lightModesSelectionBox.setWidth(300);
         Label lightModeLabel = new Label("Light mode", labelStyle);
         lightModeLabel.setPosition(26, 152);
-        stage.addActor(lightModesSelectionBox);
-        stage.addActor(lightModeLabel);
         
         uvModesSelectionBox = new SelectBox<>(selectBoxStyle);
         uvModesSelectionBox.setItems(uvModes);
@@ -274,16 +285,6 @@ public class Main extends ApplicationAdapter {
         Label uvModeLabel = new Label("Volume bar\nmode", labelStyle);
         uvModeLabel.setPosition(20, 100);
         uvModeLabel.setAlignment(Align.right);
-        stage.addActor(uvModesSelectionBox);
-        stage.addActor(uvModeLabel);
-        
-        CheckBox.CheckBoxStyle checkBoxStyle = new CheckBox.CheckBoxStyle();
-        checkBoxStyle.checkboxOff = uiTextures.getDrawable("checkBox_disabled");
-        checkBoxStyle.checkboxOver = uiTextures.getDrawable("checkBox_disabled_over");
-        checkBoxStyle.checkboxOn = uiTextures.getDrawable("checkBox_enabled");
-        checkBoxStyle.checkboxOnOver = uiTextures.getDrawable("checkBox_enabled_over");
-        setDrawableDimensions(50, 50, checkBoxStyle.checkboxOff, checkBoxStyle.checkboxOver, checkBoxStyle.checkboxOn, checkBoxStyle.checkboxOnOver);
-        checkBoxStyle.font = font;
         
         final CheckBox powerCheckBox = new CheckBox("on ", checkBoxStyle);
         powerCheckBox.setChecked(true);
@@ -309,9 +310,41 @@ public class Main extends ApplicationAdapter {
         pcControlCheckBox.setPosition(250, 350);
         pcControlCheckBox.align(Align.left);
         
+        final Slider delaySlider = new Slider(1, targetFps, 1, false, sliderStyle);
+        delaySlider.setValue(targetAnimationBufferSize);
+        delaySlider.setBounds(5, 25, 300, 10);
+        final Label delaySliderLabel = new Label("Animation delay:" + targetAnimationBufferSize, labelStyle);
+        delaySliderLabel.setPosition(310, 15);
+        delaySlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                delaySliderLabel.setText("Animation delay:" + (int)delaySlider.getValue());
+            }
+        });
+        delaySlider.addListener(new ClickListener() {
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                targetAnimationBufferSize = (int) delaySlider.getValue();
+                super.touchUp(event, x, y, pointer, button);
+            }
+        });
+        
+        stage = new Stage();
+        stage.addActor(openPort);
+        stage.addActor(closePort);
+        stage.addActor(arduinoModes);
+        stage.addActor(arduinoModeLabel);
+        stage.addActor(pcArduinoModes);
+        stage.addActor(pcArduinoModeLabel);
+        stage.addActor(lightModesSelectionBox);
+        stage.addActor(lightModeLabel);
         stage.addActor(powerCheckBox);
         stage.addActor(pcControlCheckBox);
-      
+        stage.addActor(uvModesSelectionBox);
+        stage.addActor(uvModeLabel);
+        stage.addActor(delaySlider);
+        stage.addActor(delaySliderLabel);
+        
         Gdx.input.setInputProcessor(stage);
         
         updateThread = new Timer();
@@ -389,6 +422,14 @@ public class Main extends ApplicationAdapter {
         }, 0, targetDelta);
     }
     
+    private void resizeAnimationBuffer() {
+        if (animationBuffer == null) {
+            animationBuffer = new Array<>(targetAnimationBufferSize);
+        } else if (animationBuffer.size != targetAnimationBufferSize) {
+            animationBuffer = new Array<>(targetAnimationBufferSize);
+        }
+    }
+    
     void closePort() {
         log(INFO, "Closing port");
         if (arduinoPort != null) {
@@ -429,8 +470,8 @@ public class Main extends ApplicationAdapter {
         }
     }
     
-    void sendData(byte... data) {
-        if (arduinoPort != null) {
+    void sendData(final byte... data) {
+        if (arduinoPort != null && data != null) {
             arduinoPort.writeBytes(data, data.length, 0);
         }
     }
@@ -441,7 +482,12 @@ public class Main extends ApplicationAdapter {
             mergedColorBuffer[i + 1] = (byte) clamp(greenChannel[i / 3], 0, 255);
             mergedColorBuffer[i + 2] = (byte) clamp(blueChannel[i / 3], 0, 255);
         }
-        sendData(mergedColorBuffer);
+        resizeAnimationBuffer();
+        animationBuffer.set(targetAnimationBufferSize - 1, mergedColorBuffer);
+        sendData(animationBuffer.get(0));
+        for (int i = 0; i < animationBuffer.size - 1; i++) {
+            animationBuffer.set(i, animationBuffer.get(i + 1));
+        }
     }
     
     static void log(LogLevel logLevel, String message) {

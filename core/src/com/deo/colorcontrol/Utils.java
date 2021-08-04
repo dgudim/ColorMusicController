@@ -12,6 +12,7 @@ import java.util.Arrays;
 
 import static com.badlogic.gdx.math.MathUtils.clamp;
 import static java.lang.StrictMath.abs;
+import static java.lang.System.arraycopy;
 
 public class Utils {
     
@@ -69,8 +70,8 @@ public class Utils {
     static void shiftArray(int times, float[]... arrays) {
         for (int t = 0; t < times; t++) {
             for (float[] array : arrays) {
-                if (array.length - 1 >= 0)
-                    System.arraycopy(array, 0, array, 1, array.length - 1);
+                if (array.length >= 1)
+                    arraycopy(array, 0, array, 1, array.length - 1);
             }
         }
     }
