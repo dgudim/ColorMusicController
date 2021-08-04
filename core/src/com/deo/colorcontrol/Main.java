@@ -3,6 +3,7 @@ package com.deo.colorcontrol;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.AudioRecorder;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -132,6 +133,20 @@ public class Main extends ApplicationAdapter {
         mergedColorBuffer[0] = (byte) 'f'; //starting byte
         mergedColorBuffer[mergedColorBuffer.length - 1] = 1; //ending byte(can be any byte)
         openPort();
+    
+        FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
+    
+        if(shutdownFlag.exists()){
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            shutdownFlag.delete();
+            sendData((byte)'p');
+            closePort();
+            System.exit(3);
+        }
         
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
