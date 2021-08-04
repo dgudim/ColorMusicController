@@ -122,7 +122,7 @@ public class Main extends ApplicationAdapter {
     static boolean arduinoModeInitialized;
     int musicNotPlayingTimer;
     
-    int targetAnimationBufferSize;
+    int targetAnimationBufferSize = 1;
     Array<byte[]> animationBuffer;
     
     Timer updateThread;
