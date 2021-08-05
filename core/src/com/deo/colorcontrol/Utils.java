@@ -12,6 +12,8 @@ import java.util.Arrays;
 
 import static com.badlogic.gdx.math.MathUtils.clamp;
 import static java.lang.StrictMath.abs;
+import static java.lang.StrictMath.max;
+import static java.lang.StrictMath.pow;
 import static java.lang.System.arraycopy;
 
 public class Utils {
@@ -46,24 +48,49 @@ public class Utils {
         }
     }
     
-    static float[] smoothArray(float[] array, int smoothingRange, int smoothingFactor, boolean newArray) {
-        float[] samplesNew = new float[0];
-        if (newArray) {
-            samplesNew = new float[array.length];
+    static float findAverageValueInAnArray(Array<Float> array) {
+        float average = 0;
+        for (int i = 0; i<array.size; i++) {
+            average += array.get(i);
         }
+        return average/(float)array.size;
+    }
+    
+    static float findMaxValueInAnArray(float[] array) {
+        float max = Float.MIN_VALUE;
+        for (float value : array) {
+            max = max(max, value);
+        }
+        return max;
+    }
+    
+    static void clampArray(float[] array, float min, float max) {
+        for (int i = 0; i < array.length; i++) {
+            array[i] = clamp(array[i], min, max);
+        }
+    }
+    
+    static void absoluteArray(float[] array) {
+        for (int i = 0; i < array.length; i++) {
+            array[i] = abs(array[i]);
+        }
+    }
+    
+    static void scaleArray(float[] array, float divideBy) {
+        for (int i = 0; i < array.length; i++) {
+            array[i] /= divideBy;
+        }
+    }
+    
+    static float formatNumber(float number, int digits) {
+        return (float) (((int) (number * pow(10, digits))) / pow(10, digits));
+    }
+    
+    static void smoothArray(float[] array, int smoothingRange, int smoothingFactor) {
         for (int t = 0; t < smoothingFactor; t++) {
             for (int i = 0; i < array.length; i++) {
-                if (newArray) {
-                    samplesNew[i] = getNeighbours(array, i, smoothingRange) / (float) (smoothingRange * 2 + 1);
-                } else {
-                    array[i] = getNeighbours(array, i, smoothingRange) / (float) (smoothingRange * 2 + 1);
-                }
+                array[i] = getNeighbours(array, i, smoothingRange) / (float) (smoothingRange * 2 + 1);
             }
-        }
-        if (newArray) {
-            return samplesNew;
-        } else {
-            return array;
         }
     }
     
@@ -76,7 +103,7 @@ public class Utils {
         }
     }
     
-    static void fillArray(float[] array, float value){
+    static void fillArray(float[] array, float value) {
         Arrays.fill(array, value);
     }
     
