@@ -503,10 +503,10 @@ public class Main extends ApplicationAdapter {
     }
     
     void sendColorArray() {
-        for (int i = 1; i < mergedColorBuffer.length - 4; i += 3) {
-            mergedColorBuffer[i] = (byte) clamp(redChannel[i / 3], 0, 255);
-            mergedColorBuffer[i + 1] = (byte) clamp(greenChannel[i / 3], 0, 255);
-            mergedColorBuffer[i + 2] = (byte) clamp(blueChannel[i / 3], 0, 255);
+        for (int i = 1; i < mergedColorBuffer.length - 3; i += 3) {
+            mergedColorBuffer[i] = (byte) clamp(redChannel[(i - 1) / 3], 0, 255);
+            mergedColorBuffer[i + 1] = (byte) clamp(greenChannel[(i - 1) / 3], 0, 255);
+            mergedColorBuffer[i + 2] = (byte) clamp(blueChannel[(i - 1) / 3], 0, 255);
         }
         resizeAnimationBuffer();
         animationBuffer.set(targetAnimationBufferSize - 1, mergedColorBuffer);
