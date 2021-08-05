@@ -42,10 +42,16 @@ import static com.deo.colorcontrol.LogLevel.INFO;
 import static com.deo.colorcontrol.LogLevel.NOTHING;
 import static com.deo.colorcontrol.LogLevel.WARNING;
 import static com.deo.colorcontrol.Main.log;
+import static com.deo.colorcontrol.Utils.absoluteArray;
 import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
 import static com.deo.colorcontrol.Utils.applyLinearScale;
+import static com.deo.colorcontrol.Utils.clampArray;
 import static com.deo.colorcontrol.Utils.fillArray;
+import static com.deo.colorcontrol.Utils.findAverageValueInAnArray;
+import static com.deo.colorcontrol.Utils.findMaxValueInAnArray;
+import static com.deo.colorcontrol.Utils.formatNumber;
 import static com.deo.colorcontrol.Utils.generateRegion;
+import static com.deo.colorcontrol.Utils.scaleArray;
 import static com.deo.colorcontrol.Utils.setDrawableDimensions;
 import static com.deo.colorcontrol.Utils.shiftArray;
 import static com.deo.colorcontrol.Utils.smoothArray;
@@ -65,19 +71,27 @@ public class Main extends ApplicationAdapter {
     SpriteBatch spriteBatch;
     Stage stage;
     
-    Array<Float> floatingMaxSampleSmoothingArray = new Array<>();
+    Array<Float> floatingMaxVolumeSmoothingArray = new Array<>();
+    
     Array<float[]> smoothingArray_volume = new Array<>();
     Array<Float> smoothingArray_channelDiff = new Array<>();
     Array<float[]> smoothingArray_deltaVolume = new Array<>();
+    
     Array<float[]> smoothingArray_lowFrequency = new Array<>();
     Array<float[]> smoothingArray_midFrequency = new Array<>();
     Array<float[]> smoothingArray_highFrequency = new Array<>();
-    float[] currentVolume = new float[2];
-    float currentChannelDiff;
-    float[] currentVolumeDelta = new float[2];
-    float[] currentBassFrequencyValue = new float[2];
-    float[] currentMidFrequencyValue = new float[2];
-    float[] currentHighFrequencyValue = new float[2];
+    
+    Array<float[]> fftSamplesLeftSmoothingArray = new Array<>();
+    Array<float[]> fftSamplesRightSmoothingArray = new Array<>();
+    
+    Array<Float> floatingMaxSampleSmoothingArray = new Array<>();
+    
+    float[] currentVolume = new float[2]; // range 0 - 1
+    float currentChannelDiff; // range -1 - 1
+    float[] currentVolumeDelta = new float[2]; // range -1 - 1
+    float[] currentBassFrequencyValue = new float[2]; //range 0 - 1
+    float[] currentMidFrequencyValue = new float[2]; //range 0 - 1
+    float[] currentHighFrequencyValue = new float[2]; //range 0 - 1
     int[] bassFrequencies = new int[]{0, 200};
     int[] midFrequencies = new int[]{500, 2000};
     int[] highFrequencies = new int[]{8000, 20000};
@@ -88,9 +102,10 @@ public class Main extends ApplicationAdapter {
     short[] byteBuffer = new short[frameSize];
     
     final int fftFrameSize = frameSize / 2;
-    float[][] current_fftSamples = new float[2][fftFrameSize];
-    float[][] fftSamples = new float[2][fftFrameSize];
-    float fftDecaySpeed = 1.5f;
+    float[][] fftSamples = new float[2][fftFrameSize];  //range 0 - 1
+    
+    float[][] fftSamples_display_copy = new float[2][fftFrameSize];
+    
     float frequencyToFftSampleConversionStep = fftFrameSize / 20000f;
     
     final int numLeds = 120;
@@ -159,6 +174,8 @@ public class Main extends ApplicationAdapter {
         font = generator.generateFont(parameter);
         generator.dispose();
         font.getData().markupEnabled = true;
+        
+        initDisplayBuffer();
         
         audioRecorder = Gdx.audio.newAudioRecorder(44100, false);
         fft = new FloatFFT_1D(fftFrameSize);
@@ -310,15 +327,15 @@ public class Main extends ApplicationAdapter {
         pcControlCheckBox.setPosition(250, 350);
         pcControlCheckBox.align(Align.left);
         
-        final Slider delaySlider = new Slider(1, targetFps, 1, false, sliderStyle);
+        final Slider delaySlider = new Slider(1, targetFps + 1, 1, false, sliderStyle);
         delaySlider.setValue(targetAnimationBufferSize);
-        delaySlider.setBounds(5, 25, 300, 10);
-        final Label delaySliderLabel = new Label("Animation delay:" + targetAnimationBufferSize, labelStyle);
-        delaySliderLabel.setPosition(310, 15);
+        delaySlider.setBounds(30, 25, 300, 10);
+        final Label delaySliderLabel = new Label("Animation delay:" + (targetAnimationBufferSize - 1) + "(" + getAnimationDelayInSeconds() + "s)", labelStyle);
+        delaySliderLabel.setPosition(340, 15);
         delaySlider.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                delaySliderLabel.setText("Animation delay:" + (int)delaySlider.getValue());
+                delaySliderLabel.setText("Animation delay:" + ((int) delaySlider.getValue() - 1) + "(" + formatNumber(((int) delaySlider.getValue() - 1) / (float) targetFps, 2) + "s)");
             }
         });
         delaySlider.addListener(new ClickListener() {
@@ -346,7 +363,6 @@ public class Main extends ApplicationAdapter {
         stage.addActor(delaySliderLabel);
         
         Gdx.input.setInputProcessor(stage);
-        
         updateThread = new Timer();
         updateThread.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -360,7 +376,7 @@ public class Main extends ApplicationAdapter {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-                    } else if (musicNotPlayingTimer < targetFps) { //second of silence
+                    } else if (musicNotPlayingTimer < targetFps * 3) { // 3 seconds of silence
                         switch (currentPcArduinoDisplayMode) {
                             case (0):
                             default:
@@ -394,24 +410,24 @@ public class Main extends ApplicationAdapter {
                                 shiftArray(4, blueChannel);
                                 break;
                             case (4):
-                                fillArray(redChannel, currentBassFrequencyValue[0] / 2048f * 50);
-                                fillArray(greenChannel, currentMidFrequencyValue[0] / 2048f * 50);
-                                fillArray(blueChannel, currentHighFrequencyValue[0] / 2048f * 50);
+                                fillArray(redChannel, currentBassFrequencyValue[0] * 255);
+                                fillArray(greenChannel, currentMidFrequencyValue[0] * 255);
+                                fillArray(blueChannel, currentHighFrequencyValue[0] * 255);
                                 break;
                             case (5):
-                                redChannel[0] = currentBassFrequencyValue[0] / 2048f * 50;
-                                greenChannel[0] = currentMidFrequencyValue[0] / 2048f * 50;
-                                blueChannel[0] = currentHighFrequencyValue[0] / 2048f * 50;
+                                redChannel[0] = currentBassFrequencyValue[0] * 255;
+                                greenChannel[0] = currentMidFrequencyValue[0] * 255;
+                                blueChannel[0] = currentHighFrequencyValue[0] * 255;
                                 shiftArray(4, redChannel);
                                 shiftArray(6, greenChannel);
                                 shiftArray(8, blueChannel);
                                 break;
                             case (6):
                                 for (int i = 0; i < numLeds; i++) {
-                                    redChannel[i] = current_fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 50;
+                                    redChannel[i] = fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] * 200;
                                 }
                                 for (int i = 0; i < numLeds; i++) {
-                                    greenChannel[i] = current_fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] / 2048f * 50;
+                                    greenChannel[i] = fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] * 200;
                                 }
                                 break;
                         }
@@ -423,11 +439,21 @@ public class Main extends ApplicationAdapter {
     }
     
     private void resizeAnimationBuffer() {
-        if (animationBuffer == null) {
-            animationBuffer = new Array<>(targetAnimationBufferSize);
-        } else if (animationBuffer.size != targetAnimationBufferSize) {
-            animationBuffer = new Array<>(targetAnimationBufferSize);
+        if (animationBuffer.size != targetAnimationBufferSize) {
+            initDisplayBuffer();
+            log(INFO, "Resized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
         }
+    }
+    
+    private void initDisplayBuffer() {
+        animationBuffer = new Array<>(targetAnimationBufferSize);
+        for (int i = 0; i < targetAnimationBufferSize; i++) {
+            animationBuffer.add(null);
+        }
+    }
+    
+    float getAnimationDelayInSeconds() {
+        return formatNumber((animationBuffer.size - 1) / (float) targetFps, 2);
     }
     
     void closePort() {
@@ -528,21 +554,46 @@ public class Main extends ApplicationAdapter {
             fftSamples[0][i / 2] = byteBuffer[i];
             fftSamples[1][i / 2] = byteBuffer[i + 1];
         }
+        
         fft.realForward(fftSamples[0]);
         fft.realForward(fftSamples[1]);
+        
         applyLinearScale(fftSamples[0], 0.015f);
         applyLinearScale(fftSamples[1], 0.015f);
-        fftSamples[0] = smoothArray(fftSamples[0], 2, 10, false);
-        fftSamples[1] = smoothArray(fftSamples[1], 2, 10, false);
-        for (int i = 0; i < fftFrameSize; i++) {
-            current_fftSamples[0][i] += fftSamples[0][i] * fftDecaySpeed;
-            current_fftSamples[1][i] += fftSamples[1][i] * fftDecaySpeed;
-            current_fftSamples[0][i] /= fftDecaySpeed;
-            current_fftSamples[1][i] /= fftDecaySpeed;
+        
+        absoluteArray(fftSamples[0]);
+        absoluteArray(fftSamples[1]);
+        
+        smoothArray(fftSamples[0], 2, 10);
+        smoothArray(fftSamples[1], 2, 10);
+        
+        fftSamples[0] = addValueToAShiftingArray(3, fftSamples[0], fftSamplesLeftSmoothingArray, false);
+        fftSamples[1] = addValueToAShiftingArray(3, fftSamples[1], fftSamplesRightSmoothingArray, false);
+        
+        float maxFrequencyVolume = adaptiveVolumeGain(
+                targetFps * 10,
+                max(findMaxValueInAnArray(fftSamples[0]), findMaxValueInAnArray(fftSamples[1])),
+                floatingMaxSampleSmoothingArray);
+        
+        scaleArray(fftSamples[0], maxFrequencyVolume);
+        scaleArray(fftSamples[1], maxFrequencyVolume);
+        clampArray(fftSamples[0], 0, 1);
+        clampArray(fftSamples[1], 0, 1);
+        
+        for (int c = 0; c < fftSamples.length; c++) {
+            System.arraycopy(fftSamples[c], 0, fftSamples_display_copy[c], 0, fftSamples[c].length);
         }
+        
         currentBassFrequencyValue = addValueToAShiftingArray(2, getFrequencyVolume(bassFrequencies), smoothingArray_lowFrequency, false);
         currentMidFrequencyValue = addValueToAShiftingArray(2, getFrequencyVolume(midFrequencies), smoothingArray_midFrequency, false);
         currentHighFrequencyValue = addValueToAShiftingArray(2, getFrequencyVolume(highFrequencies), smoothingArray_highFrequency, false);
+    }
+    
+    float adaptiveVolumeGain(int maxSize, float valueToAdd, Array<Float> targetArray) {
+        if (findAverageValueInAnArray(targetArray) < valueToAdd / 3f) {
+            valueToAdd *= 7;
+        }
+        return addValueToAShiftingArray(maxSize, valueToAdd, targetArray, false);
     }
     
     float[] getFrequencyVolume(int[] frequencyRange) {
@@ -550,8 +601,8 @@ public class Main extends ApplicationAdapter {
         int from = (int) (frequencyRange[0] * frequencyToFftSampleConversionStep);
         int to = (int) (frequencyRange[1] * frequencyToFftSampleConversionStep);
         for (int i = from; i < to; i++) {
-            frequencyVolume[0] += current_fftSamples[0][i];
-            frequencyVolume[1] += current_fftSamples[1][i];
+            frequencyVolume[0] += fftSamples[0][i];
+            frequencyVolume[1] += fftSamples[1][i];
         }
         frequencyVolume[0] /= (float) (to - from);
         frequencyVolume[1] /= (float) (to - from);
@@ -579,9 +630,8 @@ public class Main extends ApplicationAdapter {
         } else {
             musicNotPlayingTimer = 0;
         }
-        float averageMaxSample = addValueToAShiftingArray(targetFps * 10, maxSample, floatingMaxSampleSmoothingArray, false);
-        sum[0] /= (byteBuffer.length / 2f * averageMaxSample);
-        sum[1] /= (byteBuffer.length / 2f * averageMaxSample);
+        float averageMaxSample = adaptiveVolumeGain(targetFps * 10, maxSample, floatingMaxVolumeSmoothingArray);
+        scaleArray(sum, byteBuffer.length / 2f * averageMaxSample);
         
         currentVolume = addValueToAShiftingArray(2, sum, smoothingArray_volume, true);
         
@@ -590,7 +640,7 @@ public class Main extends ApplicationAdapter {
                         currentVolume[1] - previousVolume[1]},
                 smoothingArray_deltaVolume, false);
         
-        currentChannelDiff = addValueToAShiftingArray(2, abs(currentVolume[1] - currentVolume[0]), smoothingArray_channelDiff, false);
+        currentChannelDiff = addValueToAShiftingArray(2, currentVolume[1] - currentVolume[0], smoothingArray_channelDiff, false);
         previousVolume = currentVolume;
     }
     
@@ -605,23 +655,24 @@ public class Main extends ApplicationAdapter {
         float step = 3200 / (float) frameSize;
         shapeRenderer.setColor(Color.valueOf("#ff000033"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, abs(current_fftSamples[0][i]) / 200 + 15, step);
+            shapeRenderer.rectLine(i * step, 15, i * step, fftSamples_display_copy[0][i] * 100 + 15, step);
         }
         shapeRenderer.setColor(Color.valueOf("#0000ff33"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, abs(current_fftSamples[1][i]) / 200 + 15, step);
+            shapeRenderer.rectLine(i * step, 15, i * step, fftSamples_display_copy[1][i] * 100 + 15, step);
         }
         shapeRenderer.setColor(Color.valueOf("#00ff0033"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, abs(current_fftSamples[1][i] - current_fftSamples[0][i]) / 200 + 15, step);
+            shapeRenderer.rectLine(i * step, 15, i * step, abs(fftSamples_display_copy[1][i] - fftSamples_display_copy[0][i]) * 100 + 15, step);
         }
         shapeRenderer.setColor(Color.valueOf("#a4ff63"));
         shapeRenderer.rectLine(5, 15, 5, currentVolume[0] * 465 + 15, 5);
         shapeRenderer.rectLine(11, 15, 11, currentVolume[1] * 465 + 15, 5);
-        shapeRenderer.setColor(Color.valueOf("#ffc163"));
-        shapeRenderer.rectLine(17, 15, 17, currentChannelDiff * 465 + 15, 5);
-        shapeRenderer.setColor(Color.valueOf("#5563ff"));
+        shapeRenderer.setColor(Color.valueOf(currentChannelDiff > 0 ? "#ffc163" : "#63c1ff"));
+        shapeRenderer.rectLine(17, 15, 17, abs(currentChannelDiff) * 465 + 15, 5);
+        shapeRenderer.setColor(Color.valueOf(currentVolumeDelta[0] > 0 ? "#5563ff" : "#ff6355"));
         shapeRenderer.rectLine(23, 15, 23, abs(currentVolumeDelta[0]) * 465 + 15, 5);
+        shapeRenderer.setColor(Color.valueOf(currentVolumeDelta[1] > 0 ? "#5563ff" : "#ff6355"));
         shapeRenderer.rectLine(29, 15, 29, abs(currentVolumeDelta[1]) * 465 + 15, 5);
         for (int i = 0; i < numLeds; i++) {
             shapeRenderer.setColor(new Color(Color.rgba8888(clamp(redChannel[i] / 255f, 0, 1), clamp(greenChannel[i] / 255f, 0, 1), clamp(blueChannel[i] / 255f, 0, 1), 1)));
