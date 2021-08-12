@@ -182,7 +182,7 @@ public class Main extends ApplicationAdapter {
         generator.dispose();
         font.getData().markupEnabled = true;
         
-        initDisplayBuffer();
+        initAnimationBuffer();
         
         audioRecorder = Gdx.audio.newAudioRecorder(44100, false);
         fft = new FloatFFT_1D(fftFrameSize);
@@ -477,12 +477,12 @@ public class Main extends ApplicationAdapter {
     
     private void resizeAnimationBuffer() {
         if (animationBuffer.size != targetAnimationBufferSize) {
-            initDisplayBuffer();
+            initAnimationBuffer();
             log(INFO, "Resized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
         }
     }
     
-    private void initDisplayBuffer() {
+    private void initAnimationBuffer() {
         animationBuffer = new Array<>(targetAnimationBufferSize);
         for (int i = 0; i < targetAnimationBufferSize; i++) {
             animationBuffer.add(null);

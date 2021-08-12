@@ -43,7 +43,7 @@ import static org.apache.commons.math3.util.FastMath.sin;
  *
  * @author Piotr Wendykier (piotr.wendykier@gmail.com)
  */
-public class CommonUtils {
+public class FFTUtils {
     
     private static final long THREADS_BEGIN_N_1D_FFT_2THREADS = 8192;
     
@@ -51,7 +51,7 @@ public class CommonUtils {
     
     private static boolean useLargeArrays = false;
     
-    public CommonUtils() {
+    public FFTUtils() {
     }
     
     /**
@@ -88,7 +88,7 @@ public class CommonUtils {
      * @param useLargeArrays the value of useLargeArrays variable
      */
     public static void setUseLargeArrays(boolean useLargeArrays) {
-        CommonUtils.useLargeArrays = useLargeArrays;
+        FFTUtils.useLargeArrays = useLargeArrays;
     }
     
     /**
@@ -188,11 +188,11 @@ public class CommonUtils {
         ipl.setLong(2, 0);
         ipl.setLong(3, 16);
         m = 2;
-        for (l = nw; l > 32; l >>= 2l) {
-            m2 = m << 1l;
-            q = m2 << 3l;
+        for (l = nw; l > 32; l >>= 2L) {
+            m2 = m << 1L;
+            q = m2 << 3L;
             for (j = m; j < m2; j++) {
-                p = ipl.getLong(j) << 2l;
+                p = ipl.getLong(j) << 2L;
                 ipl.setLong(m + j, p);
                 ipl.setLong(m2 + j, p + q);
             }
@@ -224,7 +224,7 @@ public class CommonUtils {
         
         ipl.setLong(1, nc);
         if (nc > 1) {
-            nch = nc >> 1l;
+            nch = nc >> 1L;
             delta = 0.785398163397448278999490867136046290f / nch;
             c.setFloat(startc, (float) cos(delta * nch));
             c.setFloat(startc + nch, 0.5f * c.getFloat(startc));
@@ -254,7 +254,7 @@ public class CommonUtils {
                 w[2] = (float) cos(delta2);
                 w[3] = (float) sin(delta2);
             } else if (nwh > 4) {
-                CommonUtils.makeipt(nw, ip);
+                FFTUtils.makeipt(nw, ip);
                 w[2] = 0.5f / (float) cos(delta2);
                 w[3] = 0.5f / (float) cos(delta * 6);
                 for (j = 4; j < nwh; j += 4) {
@@ -306,7 +306,7 @@ public class CommonUtils {
         float delta2, deltaj, deltaj3;
         
         ipl.setLong(0, nw);
-        ipl.setLong(1, 1l);
+        ipl.setLong(1, 1L);
         if (nw > 2) {
             nwh = nw >> 1;
             delta = 0.785398163397448278999490867136046290f / nwh;
@@ -318,7 +318,7 @@ public class CommonUtils {
                 wl.setFloat(2, (float) cos(delta2));
                 wl.setFloat(3, (float) sin(delta2));
             } else if (nwh > 4) {
-                CommonUtils.makeipt(nw, ipl);
+                FFTUtils.makeipt(nw, ipl);
                 wl.setFloat(2, 0.5f / (float) cos(delta2));
                 wl.setFloat(3, 0.5f / (float) cos(delta * 6));
                 for (j = 4; j < nwh; j += 4) {
@@ -333,7 +333,7 @@ public class CommonUtils {
             nw0 = 0;
             while (nwh > 2) {
                 nw1 = nw0 + nwh;
-                nwh >>= 1l;
+                nwh >>= 1L;
                 wl.setFloat(nw1, 1);
                 wl.setFloat(nw1 + 1, wn4r);
                 if (nwh == 4) {
@@ -368,7 +368,7 @@ public class CommonUtils {
         if (n > 8) {
             if (n > 32) {
                 cftf1st(n, a, offa, w, nw - (n >> 2));
-                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
                     cftrec4_th(n, a, offa, nw, w);
                 } else if (n > 512) {
                     cftrec4(n, a, offa, nw, w);
@@ -395,8 +395,8 @@ public class CommonUtils {
     public static void cftfsub(long n, FloatLargeArray a, long offa, LongLargeArray ip, long nw, FloatLargeArray w) {
         if (n > 8) {
             if (n > 32) {
-                cftf1st(n, a, offa, w, nw - (n >> 2l));
-                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+                cftf1st(n, a, offa, w, nw - (n >> 2L));
+                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
                     cftrec4_th(n, a, offa, nw, w);
                 } else if (n > 512) {
                     cftrec4(n, a, offa, nw, w);
@@ -424,7 +424,7 @@ public class CommonUtils {
         if (n > 8) {
             if (n > 32) {
                 cftb1st(n, a, offa, w, nw - (n >> 2));
-                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
                     cftrec4_th(n, a, offa, nw, w);
                 } else if (n > 512) {
                     cftrec4(n, a, offa, nw, w);
@@ -451,8 +451,8 @@ public class CommonUtils {
     public static void cftbsub(long n, FloatLargeArray a, long offa, LongLargeArray ip, long nw, FloatLargeArray w) {
         if (n > 8) {
             if (n > 32) {
-                cftb1st(n, a, offa, w, nw - (n >> 2l));
-                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+                cftb1st(n, a, offa, w, nw - (n >> 2L));
+                if ((ConcurrencyUtils.getNumberOfThreads() > 1) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
                     cftrec4_th(n, a, offa, nw, w);
                 } else if (n > 512) {
                     cftrec4(n, a, offa, nw, w);
@@ -894,10 +894,10 @@ public class CommonUtils {
         long idx0, idx1, idx2;
         
         m = 1;
-        for (l = n >> 2l; l > 8; l >>= 2l) {
-            m <<= 1l;
+        for (l = n >> 2L; l > 8; l >>= 2L) {
+            m <<= 1L;
         }
-        nh = n >> 1l;
+        nh = n >> 1L;
         nm = 4 * m;
         if (l == 8) {
             for (long k = 0; k < m; k++) {
@@ -1726,10 +1726,10 @@ public class CommonUtils {
         long idx0, idx1, idx2;
         
         m = 1;
-        for (l = n >> 2l; l > 8; l >>= 2l) {
+        for (l = n >> 2L; l > 8; l >>= 2L) {
             m <<= 1;
         }
-        nh = n >> 1l;
+        nh = n >> 1L;
         nm = 4 * m;
         if (l == 8) {
             for (long k = 0; k < m; k++) {
@@ -2707,7 +2707,7 @@ public class CommonUtils {
         float wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i, wd1r, wd1i, wd3r, wd3i;
         float x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i, y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i;
         long idx0, idx1, idx2, idx3, idx4, idx5;
-        mh = n >> 3l;
+        mh = n >> 3L;
         m = 2 * mh;
         j1 = m;
         j2 = j1 + m;
@@ -3144,7 +3144,7 @@ public class CommonUtils {
         float wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i, wd1r, wd1i, wd3r, wd3i;
         float x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i, y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i;
         long idx0, idx1, idx2, idx3, idx4, idx5;
-        mh = n >> 3l;
+        mh = n >> 3L;
         m = 2 * mh;
         j1 = m;
         j2 = j1 + m;
@@ -3365,7 +3365,7 @@ public class CommonUtils {
         nthreads = 2;
         idiv4 = 0;
         m = n >> 1;
-        if (n >= CommonUtils.getThreadsBeginN_1D_FFT_4Threads()) {
+        if (n >= FFTUtils.getThreadsBeginN_1D_FFT_4Threads()) {
             nthreads = 4;
             idiv4 = 1;
             m >>= 1;
@@ -3420,10 +3420,8 @@ public class CommonUtils {
         }
         try {
             ConcurrencyUtils.waitForCompletion(futures);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(CommonUtils.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (ExecutionException ex) {
-            Logger.getLogger(CommonUtils.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InterruptedException | ExecutionException ex) {
+            Logger.getLogger(FFTUtils.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -3433,11 +3431,11 @@ public class CommonUtils {
         long m;
         nthreads = 2;
         idiv4 = 0;
-        m = n >> 1l;
-        if (n >= CommonUtils.getThreadsBeginN_1D_FFT_4Threads()) {
+        m = n >> 1L;
+        if (n >= FFTUtils.getThreadsBeginN_1D_FFT_4Threads()) {
             nthreads = 4;
             idiv4 = 1;
-            m >>= 1l;
+            m >>= 1L;
         }
         Future<?>[] futures = new Future[nthreads];
         final long mf = m;
@@ -3451,7 +3449,7 @@ public class CommonUtils {
                         m = n;
                         while (m > 512) {
                             m >>= 2;
-                            cftmdl1(m, a, idx1 - m, w, nw - (m >> 1l));
+                            cftmdl1(m, a, idx1 - m, w, nw - (m >> 1L));
                         }
                         cftleaf(m, 1, a, idx1 - m, nw, w);
                         k = 0;
@@ -3476,7 +3474,7 @@ public class CommonUtils {
                             cftmdl2(m, a, idx1 - m, w, nw - m);
                         }
                         cftleaf(m, 0, a, idx1 - m, nw, w);
-                        k >>= 1l;
+                        k >>= 1L;
                         long idx2 = firstIdx - m;
                         for (j = mf - m; j > 0; j -= m) {
                             k++;
@@ -3489,10 +3487,8 @@ public class CommonUtils {
         }
         try {
             ConcurrencyUtils.waitForCompletion(futures);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(CommonUtils.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (ExecutionException ex) {
-            Logger.getLogger(CommonUtils.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InterruptedException | ExecutionException ex) {
+            Logger.getLogger(FFTUtils.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -3522,7 +3518,7 @@ public class CommonUtils {
         long idx1 = offa + n;
         while (m > 512) {
             m >>= 2;
-            cftmdl1(m, a, idx1 - m, w, nw - (m >> 1l));
+            cftmdl1(m, a, idx1 - m, w, nw - (m >> 1L));
         }
         cftleaf(m, 1, a, idx1 - m, nw, w);
         k = 0;
@@ -3572,26 +3568,26 @@ public class CommonUtils {
         if ((k & 3) != 0) {
             isplt = k & 1;
             if (isplt != 0) {
-                cftmdl1(n, a, idx1 + j, w, nw - (n >> 1l));
+                cftmdl1(n, a, idx1 + j, w, nw - (n >> 1L));
             } else {
                 cftmdl2(n, a, idx1 + j, w, nw - n);
             }
         } else {
             m = n;
-            for (i = k; (i & 3) == 0; i >>= 2l) {
-                m <<= 2l;
+            for (i = k; (i & 3) == 0; i >>= 2L) {
+                m <<= 2L;
             }
             isplt = i & 1;
             long idx2 = offa + j;
             if (isplt != 0) {
                 while (m > 128) {
-                    cftmdl1(m, a, idx2 - m, w, nw - (m >> 1l));
-                    m >>= 2l;
+                    cftmdl1(m, a, idx2 - m, w, nw - (m >> 1L));
+                    m >>= 2L;
                 }
             } else {
                 while (m > 128) {
                     cftmdl2(m, a, idx2 - m, w, nw - m);
-                    m >>= 2l;
+                    m >>= 2L;
                 }
             }
         }
@@ -3841,7 +3837,7 @@ public class CommonUtils {
         float x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
         long idx0, idx1, idx2, idx3, idx4, idx5;
         
-        mh = n >> 3l;
+        mh = n >> 3L;
         m = 2 * mh;
         j1 = m;
         j2 = j1 + m;
@@ -4116,7 +4112,7 @@ public class CommonUtils {
         float x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i, y0r, y0i, y2r, y2i;
         long idx0, idx1, idx2, idx3, idx4, idx5, idx6;
         
-        mh = n >> 3l;
+        mh = n >> 3L;
         m = 2 * mh;
         wn4r = w.getFloat(startw + 1);
         j1 = m;
@@ -5356,7 +5352,7 @@ public class CommonUtils {
         float wkr, wki, xr, xi, yr, yi;
         long idx1, idx2;
         
-        m = n >> 1l;
+        m = n >> 1L;
         ks = 2 * nc / m;
         kk = 0;
         for (long j = 2; j < m; j += 2) {

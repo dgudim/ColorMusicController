@@ -26,7 +26,7 @@
  * ***** END LICENSE BLOCK ***** */
 package com.deo.colorcontrol.jtransforms.fft;
 
-import com.deo.colorcontrol.jtransforms.utils.CommonUtils;
+import com.deo.colorcontrol.jtransforms.utils.FFTUtils;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -125,23 +125,23 @@ public final class FloatFFT_1D
         if (n < 1) {
             throw new IllegalArgumentException("n must be greater than 0");
         }
-        this.useLargeArrays = (CommonUtils.isUseLargeArrays() || 2 * n > LargeArray.getMaxSizeOf32bitArray());
+        this.useLargeArrays = (FFTUtils.isUseLargeArrays() || 2 * n > LargeArray.getMaxSizeOf32bitArray());
         this.n = (int) n;
         this.nl = n;
         if (!this.useLargeArrays) {
-            if (!CommonUtils.isPowerOf2(n)) {
-                if (CommonUtils.getReminder(n, factors) >= 211) {
+            if (!FFTUtils.isPowerOf2(n)) {
+                if (FFTUtils.getReminder(n, factors) >= 211) {
                     plan = Plans.BLUESTEIN;
-                    nBluestein = CommonUtils.nextPow2(this.n * 2 - 1);
+                    nBluestein = FFTUtils.nextPow2(this.n * 2 - 1);
                     bk1 = new float[2 * nBluestein];
                     bk2 = new float[2 * nBluestein];
                     this.ip = new int[2 + (int) ceil(2 + (1 << (int) (log(nBluestein + 0.5f) / log(2)) / 2))];
                     this.w = new float[nBluestein];
                     int twon = 2 * nBluestein;
                     nw = twon >> 2;
-                    CommonUtils.makewt(nw, ip, w);
+                    FFTUtils.makewt(nw, ip, w);
                     nc = nBluestein >> 2;
-                    CommonUtils.makect(nc, w, nw, ip);
+                    FFTUtils.makect(nc, w, nw, ip);
                     bluesteini();
                 } else {
                     plan = Plans.MIXED_RADIX;
@@ -156,23 +156,23 @@ public final class FloatFFT_1D
                 this.w = new float[this.n];
                 int twon = 2 * this.n;
                 nw = twon >> 2;
-                CommonUtils.makewt(nw, ip, w);
+                FFTUtils.makewt(nw, ip, w);
                 nc = this.n >> 2;
-                CommonUtils.makect(nc, w, nw, ip);
+                FFTUtils.makect(nc, w, nw, ip);
             }
-        } else if (!CommonUtils.isPowerOf2(nl)) {
-            if (CommonUtils.getReminder(nl, factors) >= 211) {
+        } else if (!FFTUtils.isPowerOf2(nl)) {
+            if (FFTUtils.getReminder(nl, factors) >= 211) {
                 plan = Plans.BLUESTEIN;
-                nBluesteinl = CommonUtils.nextPow2(nl * 2 - 1);
+                nBluesteinl = FFTUtils.nextPow2(nl * 2 - 1);
                 bk1l = new FloatLargeArray(2L * nBluesteinl);
                 bk2l = new FloatLargeArray(2L * nBluesteinl);
                 this.ipl = new LongLargeArray(2L + (long) ceil(2L + (1L << (long) (log(nBluesteinl + 0.5f) / log(2.)) / 2)));
                 this.wl = new FloatLargeArray(nBluesteinl);
                 long twon = 2 * nBluesteinl;
                 nwl = twon >> 2L;
-                CommonUtils.makewt(nwl, ipl, wl);
+                FFTUtils.makewt(nwl, ipl, wl);
                 ncl = nBluesteinl >> 2L;
-                CommonUtils.makect(ncl, wl, nwl, ipl);
+                FFTUtils.makect(ncl, wl, nwl, ipl);
                 bluesteinil();
             } else {
                 plan = Plans.MIXED_RADIX;
@@ -187,9 +187,9 @@ public final class FloatFFT_1D
             this.wl = new FloatLargeArray(nl);
             long twon = 2 * nl;
             nwl = twon >> 2L;
-            CommonUtils.makewt(nwl, ipl, wl);
+            FFTUtils.makewt(nwl, ipl, wl);
             ncl = nl >> 2L;
-            CommonUtils.makect(ncl, wl, nwl, ipl);
+            FFTUtils.makect(ncl, wl, nwl, ipl);
         }
     }
     
@@ -267,10 +267,10 @@ public final class FloatFFT_1D
                     float xi;
 
                     if (n > 4) {
-                        CommonUtils.cftfsub(n, a, offa, ip, nw, w);
-                        CommonUtils.rftfsub(n, a, offa, nc, w, nw);
+                        FFTUtils.cftfsub(n, a, offa, ip, nw, w);
+                        FFTUtils.rftfsub(n, a, offa, nc, w, nw);
                     } else if (n == 4) {
-                        CommonUtils.cftx020(a, offa);
+                        FFTUtils.cftx020(a, offa);
                     }
                     xi = a[offa] - a[offa + 1];
                     a[offa] += a[offa + 1];
@@ -338,10 +338,10 @@ public final class FloatFFT_1D
                     float xi;
 
                     if (nl > 4) {
-                        CommonUtils.cftfsub(nl, a, offa, ipl, nwl, wl);
-                        CommonUtils.rftfsub(nl, a, offa, ncl, wl, nwl);
+                        FFTUtils.cftfsub(nl, a, offa, ipl, nwl, wl);
+                        FFTUtils.rftfsub(nl, a, offa, ncl, wl, nwl);
                     } else if (nl == 4) {
-                        CommonUtils.cftx020(a, offa);
+                        FFTUtils.cftx020(a, offa);
                     }
                     xi = a.getFloat(offa) - a.getFloat(offa + 1);
                     a.setFloat(offa, a.getFloat(offa) + a.getFloat(offa + 1));
@@ -734,7 +734,7 @@ public final class FloatFFT_1D
             bk2[2 * nBluestein - i] = bk2[i];
             bk2[2 * nBluestein - i + 1] = bk2[i + 1];
         }
-        CommonUtils.cftbsub(2 * nBluestein, bk2, 0, ip, nw, w);
+        FFTUtils.cftbsub(2 * nBluestein, bk2, 0, ip, nw, w);
     }
 
     private void bluesteinil()
@@ -762,16 +762,16 @@ public final class FloatFFT_1D
             bk2l.setFloat(2 * nBluesteinl - i, bk2l.getFloat(i));
             bk2l.setFloat(2 * nBluesteinl - i + 1, bk2l.getFloat(i + 1));
         }
-        CommonUtils.cftbsub(2 * nBluesteinl, bk2l, 0, ipl, nwl, wl);
+        FFTUtils.cftbsub(2 * nBluesteinl, bk2l, 0, ipl, nwl, wl);
     }
     
     private void bluestein_real_forward(final float[] a, final int offa)
     {
         final float[] ak = new float[2 * nBluestein];
         int threads = ConcurrencyUtils.getNumberOfThreads();
-        if ((threads > 1) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+        if ((threads > 1) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
             int nthreads = 2;
-            if ((threads >= 4) && (n >= CommonUtils.getThreadsBeginN_1D_FFT_4Threads())) {
+            if ((threads >= 4) && (n >= FFTUtils.getThreadsBeginN_1D_FFT_4Threads())) {
                 nthreads = 4;
             }
             Future<?>[] futures = new Future[nthreads];
@@ -799,7 +799,7 @@ public final class FloatFFT_1D
                 Logger.getLogger(FloatFFT_1D.class.getName()).log(Level.SEVERE, null, ex);
             }
     
-            CommonUtils.cftbsub(2 * nBluestein, ak, 0, ip, nw, w);
+            FFTUtils.cftbsub(2 * nBluestein, ak, 0, ip, nw, w);
 
             k = nBluestein / nthreads;
             for (int i = 0; i < nthreads; i++) {
@@ -835,7 +835,7 @@ public final class FloatFFT_1D
                 ak[idx2] = -a[idx3] * bk1[idx2];
             }
 
-            CommonUtils.cftbsub(2 * nBluestein, ak, 0, ip, nw, w);
+            FFTUtils.cftbsub(2 * nBluestein, ak, 0, ip, nw, w);
 
             for (int i = 0; i < nBluestein; i++) {
                 int idx1 = 2 * i;
@@ -846,7 +846,7 @@ public final class FloatFFT_1D
             }
         }
 
-        CommonUtils.cftfsub(2 * nBluestein, ak, 0, ip, nw, w);
+        FFTUtils.cftfsub(2 * nBluestein, ak, 0, ip, nw, w);
 
         if (n % 2 == 0) {
             a[offa] = bk1[0] * ak[0] + bk1[1] * ak[1];
@@ -875,9 +875,9 @@ public final class FloatFFT_1D
     {
         final FloatLargeArray ak = new FloatLargeArray(2 * nBluesteinl);
         int threads = ConcurrencyUtils.getNumberOfThreads();
-        if ((threads > 1) && (nl > CommonUtils.getThreadsBeginN_1D_FFT_2Threads())) {
+        if ((threads > 1) && (nl > FFTUtils.getThreadsBeginN_1D_FFT_2Threads())) {
             int nthreads = 2;
-            if ((threads >= 4) && (nl > CommonUtils.getThreadsBeginN_1D_FFT_4Threads())) {
+            if ((threads >= 4) && (nl > FFTUtils.getThreadsBeginN_1D_FFT_4Threads())) {
                 nthreads = 4;
             }
             Future<?>[] futures = new Future[nthreads];
@@ -905,7 +905,7 @@ public final class FloatFFT_1D
                 Logger.getLogger(FloatFFT_1D.class.getName()).log(Level.SEVERE, null, ex);
             }
     
-            CommonUtils.cftbsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
+            FFTUtils.cftbsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
 
             k = nBluesteinl / nthreads;
             for (int i = 0; i < nthreads; i++) {
@@ -941,7 +941,7 @@ public final class FloatFFT_1D
                 ak.setFloat(idx2, -a.getFloat(idx3) * bk1l.getFloat(idx2));
             }
 
-            CommonUtils.cftbsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
+            FFTUtils.cftbsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
 
             for (long i = 0; i < nBluesteinl; i++) {
                 long idx1 = 2 * i;
@@ -952,7 +952,7 @@ public final class FloatFFT_1D
             }
         }
 
-        CommonUtils.cftfsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
+        FFTUtils.cftfsub(2 * nBluesteinl, ak, 0, ipl, nwl, wl);
 
         if (nl % 2 == 0) {
             a.setFloat(offa, bk1l.getFloat(0) * ak.getFloat(0) + bk1l.getFloat(1) * ak.getFloat(1));
