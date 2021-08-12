@@ -15,6 +15,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.List;
@@ -33,13 +34,12 @@ import com.deo.colorcontrol.jtransforms.fft.FloatFFT_1D;
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortDataListener;
 import com.fazecast.jSerialComm.SerialPortEvent;
-import com.sun.management.OperatingSystemMXBean;
 
-import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import static com.badlogic.gdx.graphics.Color.DARK_GRAY;
+import static com.badlogic.gdx.graphics.Color.WHITE;
 import static com.badlogic.gdx.math.MathUtils.clamp;
 import static com.deo.colorcontrol.LogLevel.ERROR;
 import static com.deo.colorcontrol.LogLevel.INFO;
@@ -126,14 +126,13 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
     String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
-    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft", "System monitor"};
+    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft"};
     String[] uvModes = {"Basic", "Running volume", "Running volume 2"};
     String[] lightModes = {"Basic", "Color shift", "Color flow"};
     private int currentPcArduinoDisplayMode = 0;
     SerialPort arduinoPort;
-    int baudRate = 1_000_000;
-    int pcModeSafeDelay = 100;
-    int targetFps = 60;
+    int baudRate = 1_500_000;
+    int targetFps = 30;
     int targetDelta = 1000 / targetFps;
     boolean pcControlled;
     static int errorCount;
@@ -145,18 +144,6 @@ public class Main extends ApplicationAdapter {
     Array<byte[]> animationBuffer;
     
     Timer updateThread;
-    Timer statsGatheringThread;
-    
-    OperatingSystemMXBean osBean;
-    int performanceUpdatePeriod = 250; // 4fps
-    float memoryUsage;
-    float cpuUsage;
-    
-    File cDrive = new File("C:");
-    float diskUsage;
-    
-    final float maxDiskSpeed = 500000000;
-    long lastDiskFreeSpace;
     
     public Main() {
     
@@ -164,9 +151,6 @@ public class Main extends ApplicationAdapter {
     
     @Override
     public void create() {
-        
-        osBean = ManagementFactory.getPlatformMXBean(
-                OperatingSystemMXBean.class);
         
         mergedColorBuffer[0] = (byte) 'f'; //starting byte
         mergedColorBuffer[mergedColorBuffer.length - 1] = 1; //ending byte(can be any byte)
@@ -188,7 +172,6 @@ public class Main extends ApplicationAdapter {
             shutdownFlag.delete();
             sendData((byte) 'p');
             closePort();
-            System.exit(3);
         }
         
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
@@ -214,7 +197,7 @@ public class Main extends ApplicationAdapter {
         uiTextures.addRegions(uiAtlas);
         uiTextures.addRegions(uiAtlas_buttons);
         
-        TextureRegionDrawable BarBackgroundBlank = generateRegion(100, 30, Color.DARK_GRAY);
+        TextureRegionDrawable BarBackgroundBlank = generateRegion(100, 30, DARK_GRAY);
         TextureRegionDrawable BarBackgroundGrey = generateRegion(100, 30, Color.valueOf("#333333FF"));
         TextureRegionDrawable BarBackgroundEmpty = generateRegion(100, 30, Color.valueOf("#00000000"));
         
@@ -224,11 +207,11 @@ public class Main extends ApplicationAdapter {
         textButtonStyle.down = uiTextures.getDrawable("blank_shopButton_enabled");
         textButtonStyle.font = font;
         
-        SelectBox.SelectBoxStyle selectBoxStyle = new SelectBox.SelectBoxStyle(font, Color.WHITE, BarBackgroundBlank,
+        SelectBox.SelectBoxStyle selectBoxStyle = new SelectBox.SelectBoxStyle(font, WHITE, BarBackgroundBlank,
                 new ScrollPane.ScrollPaneStyle(BarBackgroundGrey, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty, BarBackgroundEmpty),
                 new List.ListStyle(font, Color.CORAL, Color.SKY, BarBackgroundGrey));
         
-        Label.LabelStyle labelStyle = new Label.LabelStyle(font, Color.WHITE);
+        Label.LabelStyle labelStyle = new Label.LabelStyle(font, WHITE);
         
         CheckBox.CheckBoxStyle checkBoxStyle = new CheckBox.CheckBoxStyle();
         checkBoxStyle.checkboxOff = uiTextures.getDrawable("checkBox_disabled");
@@ -341,14 +324,47 @@ public class Main extends ApplicationAdapter {
         });
         powerCheckBox.setPosition(150, 350);
         powerCheckBox.align(Align.left);
-        final CheckBox pcControlCheckBox = new CheckBox("arduino", checkBoxStyle);
+        final CheckBox pcControlCheckBox = new CheckBox("pc override", checkBoxStyle);
         pcControlCheckBox.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 pcControlled = pcControlCheckBox.isChecked();
+                if (pcControlled) {
+                    uvModesSelectionBox.setTouchable(Touchable.disabled);
+                    lightModesSelectionBox.setTouchable(Touchable.disabled);
+                    arduinoModes.setTouchable(Touchable.disabled);
+                    powerCheckBox.setTouchable(Touchable.disabled);
+                    openPort.setTouchable(Touchable.disabled);
+                    uvModesSelectionBox.setColor(DARK_GRAY);
+                    lightModesSelectionBox.setColor(DARK_GRAY);
+                    arduinoModes.setColor(DARK_GRAY);
+                    powerCheckBox.setColor(DARK_GRAY);
+                    powerCheckBox.getLabel().setColor(DARK_GRAY);
+                    openPort.setColor(DARK_GRAY);
+                } else {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Thread.sleep(1300);
+                                uvModesSelectionBox.setTouchable(Touchable.enabled);
+                                lightModesSelectionBox.setTouchable(Touchable.enabled);
+                                arduinoModes.setTouchable(Touchable.enabled);
+                                powerCheckBox.setTouchable(Touchable.enabled);
+                                openPort.setTouchable(Touchable.enabled);
+                                uvModesSelectionBox.setColor(WHITE);
+                                lightModesSelectionBox.setColor(WHITE);
+                                arduinoModes.setColor(WHITE);
+                                powerCheckBox.setColor(WHITE);
+                                powerCheckBox.getLabel().setColor(WHITE);
+                                openPort.setColor(WHITE);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }).start();
+                }
                 sendingData = false;
-                pcControlCheckBox.setText(pcControlCheckBox.isChecked() ? "pc" : "arduino");
-                sendData((byte) 'c');
             }
         });
         pcControlCheckBox.setPosition(250, 350);
@@ -393,107 +409,67 @@ public class Main extends ApplicationAdapter {
         
         Gdx.input.setInputProcessor(stage);
         
-        statsGatheringThread = new Timer();
-        statsGatheringThread.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                memoryUsage = (osBean.getTotalPhysicalMemorySize() - osBean.getFreePhysicalMemorySize()) / (float) osBean.getTotalPhysicalMemorySize();
-                cpuUsage = (float) osBean.getSystemCpuLoad();
-                long currentFreeSpace = cDrive.getFreeSpace();
-                diskUsage = (abs(lastDiskFreeSpace - currentFreeSpace) / maxDiskSpeed) * (1000 / (float) performanceUpdatePeriod);
-                lastDiskFreeSpace = currentFreeSpace;
-            }
-        }, 0, performanceUpdatePeriod);
-        
         updateThread = new Timer();
         updateThread.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
                 processSamples();
-                if (pcControlled) {
-                    if (!sendingData) {
-                        sendingData = true;
-                        try {
-                            Thread.sleep(pcModeSafeDelay);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    } else if (musicNotPlayingTimer < targetFps * 3 || currentPcArduinoDisplayMode == 7) { // 3 seconds of silence
-                        switch (currentPcArduinoDisplayMode) {
-                            case (0):
-                            default:
-                                for (int i = 0; i < numLeds; i++) {
-                                    if (i < numLeds * ((currentVolume[0] + currentVolume[1]) / 2)) {
-                                        redChannel[i] = 128;
-                                    } else {
-                                        redChannel[i] = 0;
-                                    }
-                                }
-                                break;
-                            case (1):
-                                redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
-                                greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
-                                fillArray(blueChannel, 127 * clamp(currentVolume[1], 0, 1));
-                                shiftArray(1, redChannel);
-                                shiftArray(4, greenChannel);
-                                break;
-                            case (2):
-                                blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
-                                redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
-                                fillArray(greenChannel, 127 * clamp(currentVolume[1], 0, 1));
-                                shiftArray(1, blueChannel);
-                                shiftArray(4, redChannel);
-                                break;
-                            case (3):
-                                greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
-                                blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
-                                fillArray(redChannel, 127 * clamp(currentVolume[1], 0, 1));
-                                shiftArray(1, greenChannel);
-                                shiftArray(4, blueChannel);
-                                break;
-                            case (4):
-                                fillArray(redChannel, currentBassFrequencyValue[0] * 255);
-                                fillArray(greenChannel, currentMidFrequencyValue[0] * 255);
-                                fillArray(blueChannel, currentHighFrequencyValue[0] * 255);
-                                break;
-                            case (5):
-                                redChannel[0] = currentBassFrequencyValue[0] * 255;
-                                greenChannel[0] = currentMidFrequencyValue[0] * 255;
-                                blueChannel[0] = currentHighFrequencyValue[0] * 255;
-                                shiftArray(4, redChannel);
-                                shiftArray(6, greenChannel);
-                                shiftArray(8, blueChannel);
-                                break;
-                            case (6):
-                                for (int i = 0; i < numLeds; i++) {
-                                    redChannel[i] = fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] * 200;
-                                }
-                                for (int i = 0; i < numLeds; i++) {
-                                    greenChannel[i] = fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] * 200;
-                                }
-                                break;
-                            case (7): {
-                                for (int i = 0; i < numLeds; i++) {
-                                    if (i < numLeds * cpuUsage) {
-                                        redChannel[i] = 128;
-                                    } else {
-                                        redChannel[i] = 0;
-                                    }
-                                    if (i < numLeds * memoryUsage) {
-                                        greenChannel[i] = 128;
-                                    } else {
-                                        greenChannel[i] = 0;
-                                    }
-                                    if (i < numLeds * diskUsage) {
-                                        blueChannel[i] = 128;
-                                    } else {
-                                        blueChannel[i] = 0;
-                                    }
+                if (pcControlled && musicNotPlayingTimer < targetFps * 3) { // 3 seconds of silence
+                    switch (currentPcArduinoDisplayMode) {
+                        case (0):
+                        default:
+                            for (int i = 0; i < numLeds; i++) {
+                                if (i < numLeds * ((currentVolume[0] + currentVolume[1]) / 2)) {
+                                    redChannel[i] = 128;
+                                } else {
+                                    redChannel[i] = 0;
                                 }
                             }
-                        }
-                        sendColorArray();
+                            break;
+                        case (1):
+                            redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
+                            greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
+                            fillArray(blueChannel, 127 * clamp(currentVolume[1], 0, 1));
+                            shiftArray(1, redChannel);
+                            shiftArray(4, greenChannel);
+                            break;
+                        case (2):
+                            blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
+                            redChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
+                            fillArray(greenChannel, 127 * clamp(currentVolume[1], 0, 1));
+                            shiftArray(1, blueChannel);
+                            shiftArray(4, redChannel);
+                            break;
+                        case (3):
+                            greenChannel[0] = (byte) (255 * clamp((currentVolumeDelta[0]) * 5, 0, 1));
+                            blueChannel[0] = (byte) (255 * clamp((currentVolumeDelta[1]) * 5, 0, 1));
+                            fillArray(redChannel, 127 * clamp(currentVolume[1], 0, 1));
+                            shiftArray(1, greenChannel);
+                            shiftArray(4, blueChannel);
+                            break;
+                        case (4):
+                            fillArray(redChannel, currentBassFrequencyValue[0] * 255);
+                            fillArray(greenChannel, currentMidFrequencyValue[0] * 255);
+                            fillArray(blueChannel, currentHighFrequencyValue[0] * 255);
+                            break;
+                        case (5):
+                            redChannel[0] = currentBassFrequencyValue[0] * 255;
+                            greenChannel[0] = currentMidFrequencyValue[0] * 255;
+                            blueChannel[0] = currentHighFrequencyValue[0] * 255;
+                            shiftArray(4, redChannel);
+                            shiftArray(6, greenChannel);
+                            shiftArray(8, blueChannel);
+                            break;
+                        case (6):
+                            for (int i = 0; i < numLeds; i++) {
+                                redChannel[i] = fftSamples[0][(int) (i * ledPosToFftSampleConversionStep)] * 200;
+                            }
+                            for (int i = 0; i < numLeds; i++) {
+                                greenChannel[i] = fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] * 200;
+                            }
+                            break;
                     }
+                    sendColorArray();
                 }
             }
         }, 0, targetDelta);
@@ -767,7 +743,6 @@ public class Main extends ApplicationAdapter {
         closePort();
         audioRecorder.dispose();
         updateThread.cancel();
-        statsGatheringThread.cancel();
         shapeRenderer.dispose();
         spriteBatch.dispose();
         uiAtlas.dispose();
