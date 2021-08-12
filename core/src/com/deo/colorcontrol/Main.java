@@ -2,6 +2,7 @@ package com.deo.colorcontrol;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.AudioRecorder;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
@@ -32,7 +33,10 @@ import com.deo.colorcontrol.jtransforms.fft.FloatFFT_1D;
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortDataListener;
 import com.fazecast.jSerialComm.SerialPortEvent;
+import com.sun.management.OperatingSystemMXBean;
 
+import java.io.File;
+import java.lang.management.ManagementFactory;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -122,7 +126,7 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
     String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
-    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft"};
+    String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft", "System monitor"};
     String[] uvModes = {"Basic", "Running volume", "Running volume 2"};
     String[] lightModes = {"Basic", "Color shift", "Color flow"};
     private int currentPcArduinoDisplayMode = 0;
@@ -141,6 +145,18 @@ public class Main extends ApplicationAdapter {
     Array<byte[]> animationBuffer;
     
     Timer updateThread;
+    Timer statsGatheringThread;
+    
+    OperatingSystemMXBean osBean;
+    int performanceUpdatePeriod = 250; // 4fps
+    float memoryUsage;
+    float cpuUsage;
+    
+    File cDrive = new File("C:");
+    float diskUsage;
+    
+    final float maxDiskSpeed = 500000000;
+    long lastDiskFreeSpace;
     
     public Main() {
     
@@ -149,11 +165,19 @@ public class Main extends ApplicationAdapter {
     @Override
     public void create() {
         
+        osBean = ManagementFactory.getPlatformMXBean(
+                OperatingSystemMXBean.class);
+        
         mergedColorBuffer[0] = (byte) 'f'; //starting byte
         mergedColorBuffer[mergedColorBuffer.length - 1] = 1; //ending byte(can be any byte)
         openPort();
         
         FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
+        final Preferences prefs = Gdx.app.getPreferences("ArduinoColorMusicPrefs");
+        
+        currentPcArduinoDisplayMode = prefs.getInteger("currentPcArduinoDisplayMode", 0);
+        targetAnimationBufferSize = prefs.getInteger("targetAnimationBufferSize", 1);
+        log(INFO, "Current pc arduino mode: " + pcArduinoDisplayModes[currentPcArduinoDisplayMode]);
         
         if (shutdownFlag.exists()) {
             try {
@@ -256,10 +280,13 @@ public class Main extends ApplicationAdapter {
         
         final SelectBox<String> pcArduinoModes = new SelectBox<>(selectBoxStyle);
         pcArduinoModes.setItems(pcArduinoDisplayModes);
+        pcArduinoModes.setSelectedIndex(prefs.getInteger("currentPcArduinoDisplayMode"));
         pcArduinoModes.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 currentPcArduinoDisplayMode = pcArduinoModes.getSelectedIndex();
+                prefs.putInteger("currentPcArduinoDisplayMode", currentPcArduinoDisplayMode);
+                prefs.flush();
                 for (int i = 0; i < numLeds; i++) {
                     redChannel[i] = 0;
                     greenChannel[i] = 0;
@@ -342,6 +369,8 @@ public class Main extends ApplicationAdapter {
             @Override
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
                 targetAnimationBufferSize = (int) delaySlider.getValue();
+                prefs.putInteger("targetAnimationBufferSize", targetAnimationBufferSize);
+                prefs.flush();
                 super.touchUp(event, x, y, pointer, button);
             }
         });
@@ -363,6 +392,19 @@ public class Main extends ApplicationAdapter {
         stage.addActor(delaySliderLabel);
         
         Gdx.input.setInputProcessor(stage);
+        
+        statsGatheringThread = new Timer();
+        statsGatheringThread.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                memoryUsage = (osBean.getTotalPhysicalMemorySize() - osBean.getFreePhysicalMemorySize()) / (float) osBean.getTotalPhysicalMemorySize();
+                cpuUsage = (float) osBean.getSystemCpuLoad();
+                long currentFreeSpace = cDrive.getFreeSpace();
+                diskUsage = (abs(lastDiskFreeSpace - currentFreeSpace) / maxDiskSpeed) * (1000 / (float) performanceUpdatePeriod);
+                lastDiskFreeSpace = currentFreeSpace;
+            }
+        }, 0, performanceUpdatePeriod);
+        
         updateThread = new Timer();
         updateThread.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -376,7 +418,7 @@ public class Main extends ApplicationAdapter {
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
-                    } else if (musicNotPlayingTimer < targetFps * 3) { // 3 seconds of silence
+                    } else if (musicNotPlayingTimer < targetFps * 3 || currentPcArduinoDisplayMode == 7) { // 3 seconds of silence
                         switch (currentPcArduinoDisplayMode) {
                             case (0):
                             default:
@@ -430,6 +472,25 @@ public class Main extends ApplicationAdapter {
                                     greenChannel[i] = fftSamples[1][(int) (i * ledPosToFftSampleConversionStep)] * 200;
                                 }
                                 break;
+                            case (7): {
+                                for (int i = 0; i < numLeds; i++) {
+                                    if (i < numLeds * cpuUsage) {
+                                        redChannel[i] = 128;
+                                    } else {
+                                        redChannel[i] = 0;
+                                    }
+                                    if (i < numLeds * memoryUsage) {
+                                        greenChannel[i] = 128;
+                                    } else {
+                                        greenChannel[i] = 0;
+                                    }
+                                    if (i < numLeds * diskUsage) {
+                                        blueChannel[i] = 128;
+                                    } else {
+                                        blueChannel[i] = 0;
+                                    }
+                                }
+                            }
                         }
                         sendColorArray();
                     }
@@ -450,6 +511,7 @@ public class Main extends ApplicationAdapter {
         for (int i = 0; i < targetAnimationBufferSize; i++) {
             animationBuffer.add(null);
         }
+        log(INFO, "Initialized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
     }
     
     float getAnimationDelayInSeconds() {
@@ -705,6 +767,7 @@ public class Main extends ApplicationAdapter {
         closePort();
         audioRecorder.dispose();
         updateThread.cancel();
+        statsGatheringThread.cancel();
         shapeRenderer.dispose();
         spriteBatch.dispose();
         uiAtlas.dispose();
