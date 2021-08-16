@@ -4,6 +4,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
@@ -25,6 +27,18 @@ public class Utils {
         TextureRegionDrawable textureRegionDrawable = new TextureRegionDrawable(new TextureRegion(new Texture(pixmap)));
         pixmap.dispose();
         return textureRegionDrawable;
+    }
+    
+    static void setActorColor(Color color, Actor... actors) {
+        for (Actor actor : actors) {
+            actor.setColor(color);
+        }
+    }
+    
+    static void setActorTouchable(Touchable touchable, Actor... actors) {
+        for (Actor actor : actors) {
+            actor.setTouchable(touchable);
+        }
     }
     
     static void setDrawableDimensions(float width, float height, Drawable... drawables) {
@@ -50,10 +64,10 @@ public class Utils {
     
     static float findAverageValueInAnArray(Array<Float> array) {
         float average = 0;
-        for (int i = 0; i<array.size; i++) {
+        for (int i = 0; i < array.size; i++) {
             average += array.get(i);
         }
-        return average/(float)array.size;
+        return average / (float) array.size;
     }
     
     static float findMaxValueInAnArray(float[] array) {

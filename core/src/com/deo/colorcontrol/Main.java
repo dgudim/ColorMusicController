@@ -56,6 +56,8 @@ import static com.deo.colorcontrol.Utils.findMaxValueInAnArray;
 import static com.deo.colorcontrol.Utils.formatNumber;
 import static com.deo.colorcontrol.Utils.generateRegion;
 import static com.deo.colorcontrol.Utils.scaleArray;
+import static com.deo.colorcontrol.Utils.setActorColor;
+import static com.deo.colorcontrol.Utils.setActorTouchable;
 import static com.deo.colorcontrol.Utils.setDrawableDimensions;
 import static com.deo.colorcontrol.Utils.shiftArray;
 import static com.deo.colorcontrol.Utils.smoothArray;
@@ -74,6 +76,11 @@ public class Main extends ApplicationAdapter {
     ShapeRenderer shapeRenderer;
     SpriteBatch spriteBatch;
     Stage stage;
+    private static SelectBox<String> uvModesSelectionBox;
+    private static SelectBox<String> lightModesSelectionBox;
+    private static SelectBox<String> arduinoModes;
+    private TextButton openPortButton;
+    private CheckBox powerCheckBox;
     
     Array<Float> floatingMaxVolumeSmoothingArray = new Array<>();
     
@@ -122,9 +129,6 @@ public class Main extends ApplicationAdapter {
     
     static String logBuffer = "";
     
-    private static SelectBox<String> uvModesSelectionBox;
-    private static SelectBox<String> lightModesSelectionBox;
-    private static SelectBox<String> arduinoModes;
     String[] arduinoDisplayModes = {"Volume bar", "Rainbow bar", "5 frequency bands", "3 frequency bands", "1 frequency band", "Light", "Running frequencies", "Worm", "Running worm"};
     String[] pcArduinoDisplayModes = {"Volume bar", "Running beat blue", "Running beat green", "Running beat red", "Frequency flash", "Running frequencies", "Basic fft"};
     String[] uvModes = {"Basic", "Running volume", "Running volume 2"};
@@ -144,6 +148,7 @@ public class Main extends ApplicationAdapter {
     Array<byte[]> animationBuffer;
     
     Timer updateThread;
+    Timer shutdownListenerThread;
     
     public Main() {
     
@@ -156,23 +161,12 @@ public class Main extends ApplicationAdapter {
         mergedColorBuffer[mergedColorBuffer.length - 1] = 1; //ending byte(can be any byte)
         openPort();
         
-        FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
+        final FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
         final Preferences prefs = Gdx.app.getPreferences("ArduinoColorMusicPrefs");
         
         currentPcArduinoDisplayMode = prefs.getInteger("currentPcArduinoDisplayMode", 0);
         targetAnimationBufferSize = prefs.getInteger("targetAnimationBufferSize", 1);
         log(INFO, "Current pc arduino mode: " + pcArduinoDisplayModes[currentPcArduinoDisplayMode]);
-        
-        if (shutdownFlag.exists()) {
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            shutdownFlag.delete();
-            sendData((byte) 'p');
-            closePort();
-        }
         
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
@@ -229,9 +223,9 @@ public class Main extends ApplicationAdapter {
         sliderStyle.knobDown = uiTextures.getDrawable("progressBarKnob_enabled");
         setDrawableDimensions(30, 55, sliderStyle.knob, sliderStyle.knobOver, sliderStyle.knobDown);
         
-        final TextButton openPort = new TextButton("Open port", textButtonStyle);
-        openPort.setBounds(0, 440, 140, 40);
-        openPort.addListener(new ClickListener() {
+        openPortButton = new TextButton("Open port", textButtonStyle);
+        openPortButton.setBounds(0, 440, 140, 40);
+        openPortButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 openPort();
@@ -313,7 +307,7 @@ public class Main extends ApplicationAdapter {
         uvModeLabel.setPosition(20, 100);
         uvModeLabel.setAlignment(Align.right);
         
-        final CheckBox powerCheckBox = new CheckBox("on ", checkBoxStyle);
+        powerCheckBox = new CheckBox("on ", checkBoxStyle);
         powerCheckBox.setChecked(true);
         powerCheckBox.addListener(new ClickListener() {
             @Override
@@ -330,34 +324,14 @@ public class Main extends ApplicationAdapter {
             public void clicked(InputEvent event, float x, float y) {
                 pcControlled = pcControlCheckBox.isChecked();
                 if (pcControlled) {
-                    uvModesSelectionBox.setTouchable(Touchable.disabled);
-                    lightModesSelectionBox.setTouchable(Touchable.disabled);
-                    arduinoModes.setTouchable(Touchable.disabled);
-                    powerCheckBox.setTouchable(Touchable.disabled);
-                    openPort.setTouchable(Touchable.disabled);
-                    uvModesSelectionBox.setColor(DARK_GRAY);
-                    lightModesSelectionBox.setColor(DARK_GRAY);
-                    arduinoModes.setColor(DARK_GRAY);
-                    powerCheckBox.setColor(DARK_GRAY);
-                    powerCheckBox.getLabel().setColor(DARK_GRAY);
-                    openPort.setColor(DARK_GRAY);
+                    toggleControl(false);
                 } else {
                     new Thread(new Runnable() {
                         @Override
                         public void run() {
                             try {
                                 Thread.sleep(1300);
-                                uvModesSelectionBox.setTouchable(Touchable.enabled);
-                                lightModesSelectionBox.setTouchable(Touchable.enabled);
-                                arduinoModes.setTouchable(Touchable.enabled);
-                                powerCheckBox.setTouchable(Touchable.enabled);
-                                openPort.setTouchable(Touchable.enabled);
-                                uvModesSelectionBox.setColor(WHITE);
-                                lightModesSelectionBox.setColor(WHITE);
-                                arduinoModes.setColor(WHITE);
-                                powerCheckBox.setColor(WHITE);
-                                powerCheckBox.getLabel().setColor(WHITE);
-                                openPort.setColor(WHITE);
+                                toggleControl(true);
                             } catch (InterruptedException e) {
                                 e.printStackTrace();
                             }
@@ -392,7 +366,7 @@ public class Main extends ApplicationAdapter {
         });
         
         stage = new Stage();
-        stage.addActor(openPort);
+        stage.addActor(openPortButton);
         stage.addActor(closePort);
         stage.addActor(arduinoModes);
         stage.addActor(arduinoModeLabel);
@@ -473,6 +447,39 @@ public class Main extends ApplicationAdapter {
                 }
             }
         }, 0, targetDelta);
+        
+        shutdownListenerThread = new Timer();
+        shutdownListenerThread.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (shutdownFlag.exists()) {
+                    if (pcControlled) {
+                        try {
+                            if (pcControlCheckBox.isChecked()) {
+                                pcControlCheckBox.setChecked(false);
+                                pcControlled = false;
+                                Thread.sleep(1300);
+                                toggleControl(true);
+                                Thread.sleep(100);
+                            }
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    if (powerCheckBox.isChecked()) {
+                        powerCheckBox.setChecked(false);
+                        sendData((byte) 'p');
+                    }
+                    shutdownFlag.delete();
+                }
+            }
+        }, 0, 500);
+        
+    }
+    
+    void toggleControl(boolean active) {
+        setActorColor(active ? WHITE : DARK_GRAY, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, powerCheckBox.getLabel(), openPortButton);
+        setActorTouchable(active ? Touchable.enabled : Touchable.disabled, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, openPortButton);
     }
     
     private void resizeAnimationBuffer() {
