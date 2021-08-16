@@ -750,6 +750,7 @@ public class Main extends ApplicationAdapter {
         closePort();
         audioRecorder.dispose();
         updateThread.cancel();
+        shutdownListenerThread.cancel();
         shapeRenderer.dispose();
         spriteBatch.dispose();
         uiAtlas.dispose();
