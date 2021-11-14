@@ -162,6 +162,9 @@ public class Main extends ApplicationAdapter {
         openPort();
         
         final FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
+        if(shutdownFlag.exists()){
+            shutdownFlag.delete(); //if the flag for some reason is present on startup, delete it
+        }
         final Preferences prefs = Gdx.app.getPreferences("ArduinoColorMusicPrefs");
         
         currentPcArduinoDisplayMode = prefs.getInteger("currentPcArduinoDisplayMode", 0);
@@ -471,7 +474,6 @@ public class Main extends ApplicationAdapter {
                         sendData((byte) 'p');
                     }
                     shutdownFlag.delete();
-                    System.exit(0);
                 }
             }
         }, 0, 500);
