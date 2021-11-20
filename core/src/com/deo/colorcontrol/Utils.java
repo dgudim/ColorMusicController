@@ -56,12 +56,6 @@ public class Utils {
         return sum;
     }
     
-    static void applyLinearScale(float[] array, float slope) {
-        for (int i = 0; i < array.length; i++) {
-            array[i] *= Math.log(i) * (i * slope + 1);
-        }
-    }
-    
     static float findAverageValueInAnArray(Array<Float> array) {
         float average = 0;
         for (int i = 0; i < array.size; i++) {

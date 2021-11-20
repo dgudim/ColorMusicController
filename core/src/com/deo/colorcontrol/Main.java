@@ -48,7 +48,6 @@ import static com.deo.colorcontrol.LogLevel.WARNING;
 import static com.deo.colorcontrol.Main.log;
 import static com.deo.colorcontrol.Utils.absoluteArray;
 import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
-import static com.deo.colorcontrol.Utils.applyLinearScale;
 import static com.deo.colorcontrol.Utils.clampArray;
 import static com.deo.colorcontrol.Utils.fillArray;
 import static com.deo.colorcontrol.Utils.findAverageValueInAnArray;
@@ -605,9 +604,6 @@ public class Main extends ApplicationAdapter {
         
         fft.realForward(fftSamples[0]);
         fft.realForward(fftSamples[1]);
-        
-        applyLinearScale(fftSamples[0], 0.015f);
-        applyLinearScale(fftSamples[1], 0.015f);
         
         absoluteArray(fftSamples[0]);
         absoluteArray(fftSamples[1]);
