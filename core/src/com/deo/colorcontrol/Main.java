@@ -45,9 +45,9 @@ import static com.deo.colorcontrol.LogLevel.ERROR;
 import static com.deo.colorcontrol.LogLevel.INFO;
 import static com.deo.colorcontrol.LogLevel.NOTHING;
 import static com.deo.colorcontrol.LogLevel.WARNING;
-import static com.deo.colorcontrol.Main.log;
 import static com.deo.colorcontrol.Utils.absoluteArray;
 import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
+import static com.deo.colorcontrol.Utils.applyLinearScale;
 import static com.deo.colorcontrol.Utils.clampArray;
 import static com.deo.colorcontrol.Utils.fillArray;
 import static com.deo.colorcontrol.Utils.findAverageValueInAnArray;
@@ -78,8 +78,8 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> uvModesSelectionBox;
     private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
-    private TextButton openPortButton;
-    private CheckBox powerCheckBox;
+    private TextButton openPortButton, closePortButton;
+    private CheckBox powerCheckBox, pcControlCheckBox;
     
     Array<Float> floatingMaxVolumeSmoothingArray = new Array<>();
     
@@ -137,10 +137,11 @@ public class Main extends ApplicationAdapter {
     int baudRate = 1_500_000;
     int targetFps = 30;
     int targetDelta = 1000 / targetFps;
+    boolean applyLinearScale = true;
     boolean pcControlled;
     static int errorCount;
     boolean sendingData;
-    static boolean arduinoModeInitialized;
+    static boolean arduinoInitialized;
     int musicNotPlayingTimer;
     
     int targetAnimationBufferSize = 1;
@@ -168,7 +169,7 @@ public class Main extends ApplicationAdapter {
         
         currentPcArduinoDisplayMode = prefs.getInteger("currentPcArduinoDisplayMode", 0);
         targetAnimationBufferSize = prefs.getInteger("targetAnimationBufferSize", 1);
-        log(INFO, "Current pc arduino mode: " + pcArduinoDisplayModes[currentPcArduinoDisplayMode]);
+        processArduinoLog(INFO, "Current pc arduino mode: " + pcArduinoDisplayModes[currentPcArduinoDisplayMode]);
         
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
@@ -233,9 +234,9 @@ public class Main extends ApplicationAdapter {
                 openPort();
             }
         });
-        final TextButton closePort = new TextButton("Close port", textButtonStyle);
-        closePort.setBounds(0, 390, 140, 40);
-        closePort.addListener(new ClickListener() {
+        closePortButton = new TextButton("Close port", textButtonStyle);
+        closePortButton.setBounds(0, 390, 140, 40);
+        closePortButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 closePort();
@@ -247,7 +248,7 @@ public class Main extends ApplicationAdapter {
         arduinoModes.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (arduinoModeInitialized) {
+                if (arduinoInitialized) {
                     sendData((byte) 'm', (byte) arduinoModes.getSelectedIndex());
                 }
             }
@@ -283,7 +284,7 @@ public class Main extends ApplicationAdapter {
         lightModesSelectionBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (arduinoModeInitialized) {
+                if (arduinoInitialized) {
                     sendData((byte) 'l', (byte) lightModesSelectionBox.getSelectedIndex());
                 }
             }
@@ -298,7 +299,7 @@ public class Main extends ApplicationAdapter {
         uvModesSelectionBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (arduinoModeInitialized) {
+                if (arduinoInitialized) {
                     sendData((byte) 'u', (byte) uvModesSelectionBox.getSelectedIndex());
                 }
             }
@@ -320,7 +321,7 @@ public class Main extends ApplicationAdapter {
         });
         powerCheckBox.setPosition(150, 350);
         powerCheckBox.align(Align.left);
-        final CheckBox pcControlCheckBox = new CheckBox("pc override", checkBoxStyle);
+        pcControlCheckBox = new CheckBox("pc override", checkBoxStyle);
         pcControlCheckBox.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -345,6 +346,17 @@ public class Main extends ApplicationAdapter {
         });
         pcControlCheckBox.setPosition(250, 350);
         pcControlCheckBox.align(Align.left);
+    
+        final CheckBox linearScaleCheckBox = new CheckBox("linear scale", checkBoxStyle);
+        linearScaleCheckBox.setChecked(true);
+        linearScaleCheckBox.addListener(new ClickListener(){
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                applyLinearScale = !applyLinearScale;
+            }
+        });
+        linearScaleCheckBox.setPosition(150, 300);
+        linearScaleCheckBox.align(Align.left);
         
         final Slider delaySlider = new Slider(1, targetFps + 1, 1, false, sliderStyle);
         delaySlider.setValue(targetAnimationBufferSize);
@@ -369,7 +381,7 @@ public class Main extends ApplicationAdapter {
         
         stage = new Stage();
         stage.addActor(openPortButton);
-        stage.addActor(closePort);
+        stage.addActor(closePortButton);
         stage.addActor(arduinoModes);
         stage.addActor(arduinoModeLabel);
         stage.addActor(pcArduinoModes);
@@ -378,10 +390,12 @@ public class Main extends ApplicationAdapter {
         stage.addActor(lightModeLabel);
         stage.addActor(powerCheckBox);
         stage.addActor(pcControlCheckBox);
+        stage.addActor(linearScaleCheckBox);
         stage.addActor(uvModesSelectionBox);
         stage.addActor(uvModeLabel);
         stage.addActor(delaySlider);
         stage.addActor(delaySliderLabel);
+        toggleUi(false);
         
         Gdx.input.setInputProcessor(stage);
         
@@ -480,14 +494,20 @@ public class Main extends ApplicationAdapter {
     }
     
     void toggleControl(boolean active) {
-        setActorColor(active ? WHITE : DARK_GRAY, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, powerCheckBox.getLabel(), openPortButton);
-        setActorTouchable(active ? Touchable.enabled : Touchable.disabled, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, openPortButton);
+        setActorColor(active ? WHITE : DARK_GRAY, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox.getLabel(), closePortButton);
+        setActorTouchable(active ? Touchable.enabled : Touchable.disabled, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, closePortButton);
+    }
+    
+    void toggleUi(boolean active){
+        toggleControl(active);
+        setActorColor(active ? WHITE : DARK_GRAY, pcControlCheckBox.getLabel());
+        setActorTouchable(active ? Touchable.enabled : Touchable.disabled, pcControlCheckBox);
     }
     
     private void resizeAnimationBuffer() {
         if (animationBuffer.size != targetAnimationBufferSize) {
             initAnimationBuffer();
-            log(INFO, "Resized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
+            processArduinoLog(INFO, "Resized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
         }
     }
     
@@ -496,7 +516,7 @@ public class Main extends ApplicationAdapter {
         for (int i = 0; i < targetAnimationBufferSize; i++) {
             animationBuffer.add(null);
         }
-        log(INFO, "Initialized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
+        processArduinoLog(INFO, "Initialized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
     }
     
     float getAnimationDelayInSeconds() {
@@ -504,42 +524,42 @@ public class Main extends ApplicationAdapter {
     }
     
     void closePort() {
-        log(INFO, "Closing port");
+        processArduinoLog(INFO, "Closing port");
         if (arduinoPort != null) {
             if (arduinoPort.isOpen()) {
                 arduinoPort.removeDataListener();
                 arduinoPort.closePort();
-                log(INFO, "Closed " + arduinoPort.getSystemPortName());
+                processArduinoLog(INFO, "Closed " + arduinoPort.getSystemPortName());
             } else {
-                log(INFO, "Port already closed");
+                processArduinoLog(INFO, "Port already closed");
             }
             arduinoPort = null;
         } else {
-            log(WARNING, "Couldn't close, port is null");
+            processArduinoLog(WARNING, "Couldn't close, port is null");
         }
     }
     
     void openPort() {
         closePort();
-        log(INFO, "Opening port");
+        processArduinoLog(INFO, "Opening port");
         SerialPort[] ports = SerialPort.getCommPorts();
         for (SerialPort port : ports) {
             if (port.getDescriptivePortName().toLowerCase().contains("arduino")) {
                 arduinoPort = port;
                 boolean opened = arduinoPort.openPort(20);
                 if (opened) {
-                    log(INFO, "Opened " + arduinoPort.getSystemPortName());
+                    processArduinoLog(INFO, "Opened " + arduinoPort.getSystemPortName());
                     arduinoPort.setComPortParameters(baudRate, 8, 1, SerialPort.NO_PARITY);
-                    arduinoPort.addDataListener(new SerialDataListener(arduinoPort));
+                    arduinoPort.addDataListener(new SerialDataListener(arduinoPort, this));
                 } else {
-                    log(ERROR, "Error opening " + arduinoPort.getSystemPortName() + ", port busy");
+                    processArduinoLog(ERROR, "Error opening " + arduinoPort.getSystemPortName() + ", port busy");
                     arduinoPort = null;
                 }
                 break;
             }
         }
         if (arduinoPort == null) {
-            log(ERROR, "Couldn't open port");
+            processArduinoLog(ERROR, "Couldn't open port");
         }
     }
     
@@ -563,13 +583,14 @@ public class Main extends ApplicationAdapter {
         }
     }
     
-    static void log(LogLevel logLevel, String message) {
+    void processArduinoLog(LogLevel logLevel, String message) {
         if (message.startsWith("mm")) {
             String[] settings = message.replace("mm", "").trim().split("_");
             arduinoModes.setSelectedIndex(Integer.parseInt(settings[0]));
             uvModesSelectionBox.setSelectedIndex(Integer.parseInt(settings[1]));
             lightModesSelectionBox.setSelectedIndex(Integer.parseInt(settings[2]));
-            arduinoModeInitialized = true;
+            arduinoInitialized = true;
+            toggleUi(true);
         } else if (message.trim().equals("e")) {
             errorCount++;
         } else {
@@ -604,6 +625,11 @@ public class Main extends ApplicationAdapter {
         
         fft.realForward(fftSamples[0]);
         fft.realForward(fftSamples[1]);
+        
+        if(applyLinearScale){
+            applyLinearScale(fftSamples[0], 0.015f);
+            applyLinearScale(fftSamples[1], 0.015f);
+        }
         
         absoluteArray(fftSamples[0]);
         absoluteArray(fftSamples[1]);
@@ -762,9 +788,11 @@ class SerialDataListener implements SerialPortDataListener {
     
     SerialPort serialPort;
     StringBuilder messageBuffer = new StringBuilder();
+    Main application;
     
-    public SerialDataListener(SerialPort serialPort) {
+    public SerialDataListener(SerialPort serialPort, Main application) {
         this.serialPort = serialPort;
+        this.application = application;
     }
     
     @Override
@@ -785,7 +813,7 @@ class SerialDataListener implements SerialPortDataListener {
             if (b != (byte) 10) {
                 messageBuffer.append((char) b);
             } else {
-                log(NOTHING, messageBuffer.toString());
+                application.processArduinoLog(NOTHING, messageBuffer.toString());
                 messageBuffer.delete(0, messageBuffer.length());
             }
         }
