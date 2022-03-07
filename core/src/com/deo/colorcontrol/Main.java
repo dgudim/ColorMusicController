@@ -1,5 +1,29 @@
 package com.deo.colorcontrol;
 
+import static com.badlogic.gdx.graphics.Color.DARK_GRAY;
+import static com.badlogic.gdx.graphics.Color.WHITE;
+import static com.badlogic.gdx.math.MathUtils.clamp;
+import static com.deo.colorcontrol.LogLevel.ERROR;
+import static com.deo.colorcontrol.LogLevel.INFO;
+import static com.deo.colorcontrol.LogLevel.NOTHING;
+import static com.deo.colorcontrol.LogLevel.WARNING;
+import static com.deo.colorcontrol.Utils.absoluteArray;
+import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
+import static com.deo.colorcontrol.Utils.applyLinearScale;
+import static com.deo.colorcontrol.Utils.clampArray;
+import static com.deo.colorcontrol.Utils.fillArray;
+import static com.deo.colorcontrol.Utils.findAverageValueInAnArray;
+import static com.deo.colorcontrol.Utils.findMaxValueInAnArray;
+import static com.deo.colorcontrol.Utils.generateRegion;
+import static com.deo.colorcontrol.Utils.scaleArray;
+import static com.deo.colorcontrol.Utils.setActorColor;
+import static com.deo.colorcontrol.Utils.setActorTouchable;
+import static com.deo.colorcontrol.Utils.setDrawableDimensions;
+import static com.deo.colorcontrol.Utils.shiftArray;
+import static com.deo.colorcontrol.Utils.smoothArray;
+import static java.lang.StrictMath.abs;
+import static java.lang.StrictMath.max;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
@@ -38,31 +62,6 @@ import com.fazecast.jSerialComm.SerialPortEvent;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import static com.badlogic.gdx.graphics.Color.DARK_GRAY;
-import static com.badlogic.gdx.graphics.Color.WHITE;
-import static com.badlogic.gdx.math.MathUtils.clamp;
-import static com.deo.colorcontrol.LogLevel.ERROR;
-import static com.deo.colorcontrol.LogLevel.INFO;
-import static com.deo.colorcontrol.LogLevel.NOTHING;
-import static com.deo.colorcontrol.LogLevel.WARNING;
-import static com.deo.colorcontrol.Utils.absoluteArray;
-import static com.deo.colorcontrol.Utils.addValueToAShiftingArray;
-import static com.deo.colorcontrol.Utils.applyLinearScale;
-import static com.deo.colorcontrol.Utils.clampArray;
-import static com.deo.colorcontrol.Utils.fillArray;
-import static com.deo.colorcontrol.Utils.findAverageValueInAnArray;
-import static com.deo.colorcontrol.Utils.findMaxValueInAnArray;
-import static com.deo.colorcontrol.Utils.formatNumber;
-import static com.deo.colorcontrol.Utils.generateRegion;
-import static com.deo.colorcontrol.Utils.scaleArray;
-import static com.deo.colorcontrol.Utils.setActorColor;
-import static com.deo.colorcontrol.Utils.setActorTouchable;
-import static com.deo.colorcontrol.Utils.setDrawableDimensions;
-import static com.deo.colorcontrol.Utils.shiftArray;
-import static com.deo.colorcontrol.Utils.smoothArray;
-import static java.lang.StrictMath.abs;
-import static java.lang.StrictMath.max;
-
 enum LogLevel {NOTHING, INFO, WARNING, ERROR}
 
 public class Main extends ApplicationAdapter {
@@ -78,7 +77,7 @@ public class Main extends ApplicationAdapter {
     private static SelectBox<String> uvModesSelectionBox;
     private static SelectBox<String> lightModesSelectionBox;
     private static SelectBox<String> arduinoModes;
-    private TextButton openPortButton, closePortButton;
+    private TextButton closePortButton;
     private CheckBox powerCheckBox, pcControlCheckBox;
     
     Array<Float> floatingMaxVolumeSmoothingArray = new Array<>();
@@ -118,6 +117,8 @@ public class Main extends ApplicationAdapter {
     
     float frequencyToFftSampleConversionStep = fftFrameSize / 20000f;
     
+    final int previewHeight = 7;
+    
     final int numLeds = 120;
     final float ledStep = 800 / (float) numLeds;
     float ledPosToFftSampleConversionStep = (fftFrameSize / 2f) / (float) numLeds; //limit range to 0 - 10Khz, looks better
@@ -144,9 +145,6 @@ public class Main extends ApplicationAdapter {
     static boolean arduinoInitialized;
     int musicNotPlayingTimer;
     
-    int targetAnimationBufferSize = 1;
-    Array<byte[]> animationBuffer;
-    
     Timer updateThread;
     Timer shutdownListenerThread;
     
@@ -168,18 +166,15 @@ public class Main extends ApplicationAdapter {
         final Preferences prefs = Gdx.app.getPreferences("ArduinoColorMusicPrefs");
         
         currentPcArduinoDisplayMode = prefs.getInteger("currentPcArduinoDisplayMode", 0);
-        targetAnimationBufferSize = prefs.getInteger("targetAnimationBufferSize", 1);
         processArduinoLog(INFO, "Current pc arduino mode: " + pcArduinoDisplayModes[currentPcArduinoDisplayMode]);
         
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
-        parameter.size = 20;
+        parameter.size = 17;
         parameter.characters = fontChars;
         font = generator.generateFont(parameter);
         generator.dispose();
         font.getData().markupEnabled = true;
-        
-        initAnimationBuffer();
         
         audioRecorder = Gdx.audio.newAudioRecorder(44100, false);
         fft = new FloatFFT_1D(fftFrameSize);
@@ -225,9 +220,9 @@ public class Main extends ApplicationAdapter {
         sliderStyle.knobOver = uiTextures.getDrawable("progressBarKnob_over");
         sliderStyle.knobDown = uiTextures.getDrawable("progressBarKnob_enabled");
         setDrawableDimensions(30, 55, sliderStyle.knob, sliderStyle.knobOver, sliderStyle.knobDown);
-        
-        openPortButton = new TextButton("Open port", textButtonStyle);
-        openPortButton.setBounds(0, 440, 140, 40);
+    
+        TextButton openPortButton = new TextButton("Open port", textButtonStyle);
+        openPortButton.setBounds(0, 445, 140, 30);
         openPortButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -235,7 +230,7 @@ public class Main extends ApplicationAdapter {
             }
         });
         closePortButton = new TextButton("Close port", textButtonStyle);
-        closePortButton.setBounds(0, 390, 140, 40);
+        closePortButton.setBounds(0, 405, 140, 30);
         closePortButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -253,10 +248,10 @@ public class Main extends ApplicationAdapter {
                 }
             }
         });
-        arduinoModes.setPosition(150, 260);
+        arduinoModes.setPosition(25, 340);
         arduinoModes.setWidth(300);
         Label arduinoModeLabel = new Label("Arduino mode", labelStyle);
-        arduinoModeLabel.setPosition(0, 262);
+        arduinoModeLabel.setPosition(25, 370);
         
         final SelectBox<String> pcArduinoModes = new SelectBox<>(selectBoxStyle);
         pcArduinoModes.setItems(pcArduinoDisplayModes);
@@ -274,10 +269,10 @@ public class Main extends ApplicationAdapter {
                 }
             }
         });
-        pcArduinoModes.setPosition(150, 220);
+        pcArduinoModes.setPosition(25, 270);
         pcArduinoModes.setWidth(300);
         Label pcArduinoModeLabel = new Label("Pc mode", labelStyle);
-        pcArduinoModeLabel.setPosition(61, 222);
+        pcArduinoModeLabel.setPosition(25, 300);
         
         lightModesSelectionBox = new SelectBox<>(selectBoxStyle);
         lightModesSelectionBox.setItems(lightModes);
@@ -289,10 +284,10 @@ public class Main extends ApplicationAdapter {
                 }
             }
         });
-        lightModesSelectionBox.setPosition(150, 150);
+        lightModesSelectionBox.setPosition(25, 200);
         lightModesSelectionBox.setWidth(300);
         Label lightModeLabel = new Label("Light mode", labelStyle);
-        lightModeLabel.setPosition(26, 152);
+        lightModeLabel.setPosition(25, 230);
         
         uvModesSelectionBox = new SelectBox<>(selectBoxStyle);
         uvModesSelectionBox.setItems(uvModes);
@@ -304,10 +299,10 @@ public class Main extends ApplicationAdapter {
                 }
             }
         });
-        uvModesSelectionBox.setPosition(150, 110);
+        uvModesSelectionBox.setPosition(25, 130);
         uvModesSelectionBox.setWidth(300);
-        Label uvModeLabel = new Label("Volume bar\nmode", labelStyle);
-        uvModeLabel.setPosition(20, 100);
+        Label uvModeLabel = new Label("Volume bar mode", labelStyle);
+        uvModeLabel.setPosition(25, 160);
         uvModeLabel.setAlignment(Align.right);
         
         powerCheckBox = new CheckBox("on ", checkBoxStyle);
@@ -319,7 +314,7 @@ public class Main extends ApplicationAdapter {
                 sendData((byte) 'p');
             }
         });
-        powerCheckBox.setPosition(150, 350);
+        powerCheckBox.setPosition(330, 430);
         powerCheckBox.align(Align.left);
         pcControlCheckBox = new CheckBox("pc override", checkBoxStyle);
         pcControlCheckBox.addListener(new ClickListener() {
@@ -344,7 +339,7 @@ public class Main extends ApplicationAdapter {
                 sendingData = false;
             }
         });
-        pcControlCheckBox.setPosition(250, 350);
+        pcControlCheckBox.setPosition(330, 380);
         pcControlCheckBox.align(Align.left);
     
         final CheckBox linearScaleCheckBox = new CheckBox("linear scale", checkBoxStyle);
@@ -355,29 +350,8 @@ public class Main extends ApplicationAdapter {
                 applyLinearScale = !applyLinearScale;
             }
         });
-        linearScaleCheckBox.setPosition(150, 300);
+        linearScaleCheckBox.setPosition(330, 330);
         linearScaleCheckBox.align(Align.left);
-        
-        final Slider delaySlider = new Slider(1, targetFps + 1, 1, false, sliderStyle);
-        delaySlider.setValue(targetAnimationBufferSize);
-        delaySlider.setBounds(30, 25, 300, 10);
-        final Label delaySliderLabel = new Label("Animation delay:" + (targetAnimationBufferSize - 1) + "(" + getAnimationDelayInSeconds() + "s)", labelStyle);
-        delaySliderLabel.setPosition(340, 15);
-        delaySlider.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                delaySliderLabel.setText("Animation delay:" + ((int) delaySlider.getValue() - 1) + "(" + formatNumber(((int) delaySlider.getValue() - 1) / (float) targetFps, 2) + "s)");
-            }
-        });
-        delaySlider.addListener(new ClickListener() {
-            @Override
-            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                targetAnimationBufferSize = (int) delaySlider.getValue();
-                prefs.putInteger("targetAnimationBufferSize", targetAnimationBufferSize);
-                prefs.flush();
-                super.touchUp(event, x, y, pointer, button);
-            }
-        });
         
         stage = new Stage();
         stage.addActor(openPortButton);
@@ -393,8 +367,6 @@ public class Main extends ApplicationAdapter {
         stage.addActor(linearScaleCheckBox);
         stage.addActor(uvModesSelectionBox);
         stage.addActor(uvModeLabel);
-        stage.addActor(delaySlider);
-        stage.addActor(delaySliderLabel);
         toggleUi(false);
         
         Gdx.input.setInputProcessor(stage);
@@ -504,25 +476,6 @@ public class Main extends ApplicationAdapter {
         setActorTouchable(active ? Touchable.enabled : Touchable.disabled, pcControlCheckBox);
     }
     
-    private void resizeAnimationBuffer() {
-        if (animationBuffer.size != targetAnimationBufferSize) {
-            initAnimationBuffer();
-            processArduinoLog(INFO, "Resized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
-        }
-    }
-    
-    private void initAnimationBuffer() {
-        animationBuffer = new Array<>(targetAnimationBufferSize);
-        for (int i = 0; i < targetAnimationBufferSize; i++) {
-            animationBuffer.add(null);
-        }
-        processArduinoLog(INFO, "Initialized animation buffer to " + animationBuffer.size + "(" + getAnimationDelayInSeconds() + "s)");
-    }
-    
-    float getAnimationDelayInSeconds() {
-        return formatNumber((animationBuffer.size - 1) / (float) targetFps, 2);
-    }
-    
     void closePort() {
         processArduinoLog(INFO, "Closing port");
         if (arduinoPort != null) {
@@ -575,12 +528,7 @@ public class Main extends ApplicationAdapter {
             mergedColorBuffer[i + 1] = (byte) clamp(greenChannel[(i - 1) / 3], 0, 255);
             mergedColorBuffer[i + 2] = (byte) clamp(blueChannel[(i - 1) / 3], 0, 255);
         }
-        resizeAnimationBuffer();
-        animationBuffer.set(targetAnimationBufferSize - 1, mergedColorBuffer);
-        sendData(animationBuffer.get(0));
-        for (int i = 0; i < animationBuffer.size - 1; i++) {
-            animationBuffer.set(i, animationBuffer.get(i + 1));
-        }
+        sendData(mergedColorBuffer);
     }
     
     void processArduinoLog(LogLevel logLevel, String message) {
@@ -725,28 +673,28 @@ public class Main extends ApplicationAdapter {
         float step = 3200 / (float) frameSize;
         shapeRenderer.setColor(Color.valueOf("#ff000033"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, fftSamples_display_copy[0][i] * 100 + 15, step);
+            shapeRenderer.rectLine(i * step, previewHeight, i * step, fftSamples_display_copy[0][i] * 100 + previewHeight, step);
         }
         shapeRenderer.setColor(Color.valueOf("#0000ff33"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, fftSamples_display_copy[1][i] * 100 + 15, step);
+            shapeRenderer.rectLine(i * step, previewHeight, i * step, fftSamples_display_copy[1][i] * 100 + previewHeight, step);
         }
         shapeRenderer.setColor(Color.valueOf("#00ff0033"));
         for (int i = 0; i < fftFrameSize / 2; i++) {
-            shapeRenderer.rectLine(i * step, 15, i * step, abs(fftSamples_display_copy[1][i] - fftSamples_display_copy[0][i]) * 100 + 15, step);
+            shapeRenderer.rectLine(i * step, previewHeight, i * step, abs(fftSamples_display_copy[1][i] - fftSamples_display_copy[0][i]) * 100 + previewHeight, step);
         }
         shapeRenderer.setColor(Color.valueOf("#a4ff63"));
-        shapeRenderer.rectLine(5, 15, 5, currentVolume[0] * 465 + 15, 5);
-        shapeRenderer.rectLine(11, 15, 11, currentVolume[1] * 465 + 15, 5);
+        shapeRenderer.rectLine(5, previewHeight, 5, currentVolume[0] * 465 + previewHeight, 5);
+        shapeRenderer.rectLine(11, previewHeight, 11, currentVolume[1] * 465 + previewHeight, 5);
         shapeRenderer.setColor(Color.valueOf(currentChannelDiff > 0 ? "#ffc163" : "#63c1ff"));
-        shapeRenderer.rectLine(17, 15, 17, abs(currentChannelDiff) * 465 + 15, 5);
+        shapeRenderer.rectLine(17, previewHeight, 17, abs(currentChannelDiff) * 465 + previewHeight, 5);
         shapeRenderer.setColor(Color.valueOf(currentVolumeDelta[0] > 0 ? "#5563ff" : "#ff6355"));
-        shapeRenderer.rectLine(23, 15, 23, abs(currentVolumeDelta[0]) * 465 + 15, 5);
+        shapeRenderer.rectLine(23, previewHeight, 23, abs(currentVolumeDelta[0]) * 465 + previewHeight, 5);
         shapeRenderer.setColor(Color.valueOf(currentVolumeDelta[1] > 0 ? "#5563ff" : "#ff6355"));
-        shapeRenderer.rectLine(29, 15, 29, abs(currentVolumeDelta[1]) * 465 + 15, 5);
+        shapeRenderer.rectLine(29, previewHeight, 29, abs(currentVolumeDelta[1]) * 465 + previewHeight, 5);
         for (int i = 0; i < numLeds; i++) {
             shapeRenderer.setColor(new Color(Color.rgba8888(clamp(redChannel[i] / 255f, 0, 1), clamp(greenChannel[i] / 255f, 0, 1), clamp(blueChannel[i] / 255f, 0, 1), 1)));
-            shapeRenderer.rectLine(i * ledStep, 7.5f, (i + 1) * ledStep, 7.5f, 15);
+            shapeRenderer.rectLine(i * ledStep, previewHeight / 2f, (i + 1) * ledStep, previewHeight / 2f, 7);
         }
         shapeRenderer.end();
         spriteBatch.begin();
@@ -761,9 +709,7 @@ public class Main extends ApplicationAdapter {
             font.draw(spriteBatch, "[#ffae63]Arduino not connected", 150, 470, 800, -1, false);
         }
         
-        font.getData().setScale(0.6f);
         font.draw(spriteBatch, logBuffer, 500, 480, 300, -1, true);
-        font.getData().setScale(1);
         
         spriteBatch.end();
         stage.draw();
