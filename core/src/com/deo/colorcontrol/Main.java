@@ -459,6 +459,7 @@ public class Main extends ApplicationAdapter {
                         sendData((byte) 'p');
                     }
                     shutdownFlag.delete();
+                    System.exit(0);
                 }
             }
         }, 0, 500);
