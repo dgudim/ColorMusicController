@@ -459,7 +459,7 @@ public class Main extends ApplicationAdapter {
                         sendData((byte) 'p');
                     }
                     shutdownFlag.delete();
-                    System.exit(0);
+                    Gdx.app.exit();
                 }
             }
         }, 0, 500);
