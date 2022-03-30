@@ -160,7 +160,7 @@ public class Main extends ApplicationAdapter {
         openPort();
         
         final FileHandle shutdownFlag = Gdx.files.absolute("C:\\Users\\kloud\\Documents\\Projects\\ColorMusicController\\desktop\\build\\libs\\shutdown");
-        if(shutdownFlag.exists()){
+        if (shutdownFlag.exists()) {
             shutdownFlag.delete(); //if the flag for some reason is present on startup, delete it
         }
         final Preferences prefs = Gdx.app.getPreferences("ArduinoColorMusicPrefs");
@@ -220,7 +220,7 @@ public class Main extends ApplicationAdapter {
         sliderStyle.knobOver = uiTextures.getDrawable("progressBarKnob_over");
         sliderStyle.knobDown = uiTextures.getDrawable("progressBarKnob_enabled");
         setDrawableDimensions(30, 55, sliderStyle.knob, sliderStyle.knobOver, sliderStyle.knobDown);
-    
+        
         TextButton openPortButton = new TextButton("Open port", textButtonStyle);
         openPortButton.setBounds(0, 445, 140, 30);
         openPortButton.addListener(new ClickListener() {
@@ -341,10 +341,10 @@ public class Main extends ApplicationAdapter {
         });
         pcControlCheckBox.setPosition(330, 380);
         pcControlCheckBox.align(Align.left);
-    
+        
         final CheckBox linearScaleCheckBox = new CheckBox("linear scale", checkBoxStyle);
         linearScaleCheckBox.setChecked(true);
-        linearScaleCheckBox.addListener(new ClickListener(){
+        linearScaleCheckBox.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 applyLinearScale = !applyLinearScale;
@@ -471,7 +471,7 @@ public class Main extends ApplicationAdapter {
         setActorTouchable(active ? Touchable.enabled : Touchable.disabled, uvModesSelectionBox, lightModesSelectionBox, arduinoModes, powerCheckBox, closePortButton);
     }
     
-    void toggleUi(boolean active){
+    void toggleUi(boolean active) {
         toggleControl(active);
         setActorColor(active ? WHITE : DARK_GRAY, pcControlCheckBox.getLabel());
         setActorTouchable(active ? Touchable.enabled : Touchable.disabled, pcControlCheckBox);
@@ -498,7 +498,7 @@ public class Main extends ApplicationAdapter {
         processArduinoLog(INFO, "Opening port");
         SerialPort[] ports = SerialPort.getCommPorts();
         for (SerialPort port : ports) {
-            if (port.getDescriptivePortName().toLowerCase().contains("arduino")) {
+            if (port.getDescriptivePortName().toLowerCase().contains("arduino") || port.getSystemPortName().toLowerCase().contains("ttyacm")) {
                 arduinoPort = port;
                 boolean opened = arduinoPort.openPort(20);
                 if (opened) {
@@ -575,7 +575,7 @@ public class Main extends ApplicationAdapter {
         fft.realForward(fftSamples[0]);
         fft.realForward(fftSamples[1]);
         
-        if(applyLinearScale){
+        if (applyLinearScale) {
             applyLinearScale(fftSamples[0], 0.015f);
             applyLinearScale(fftSamples[1], 0.015f);
         }
@@ -707,7 +707,7 @@ public class Main extends ApplicationAdapter {
                             + "\n Errors: " + errorCount,
                     150, 470, 800, -1, false);
         } else {
-            font.draw(spriteBatch, "[#ffae63]Arduino not connected", 150, 470, 800, -1, false);
+            font.draw(spriteBatch, "[#ffae63]Arduino not\nconnected", 150, 470, 800, -1, false);
         }
         
         font.draw(spriteBatch, logBuffer, 500, 480, 300, -1, true);
